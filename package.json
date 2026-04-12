@@ -1,0 +1,13 @@
+{
+  "name": "memgrafter-pi-dotfiles",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Local pi package for extensions, skills, prompts, and themes",
+  "keywords": ["pi-package"],
+  "pi": {
+    "extensions": ["./extensions"],
+    "skills": ["./skills"],
+    "prompts": ["./prompts"],
+    "themes": ["./themes"]
+  }
+}
