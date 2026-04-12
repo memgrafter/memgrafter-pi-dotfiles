@@ -39,8 +39,6 @@ function buildTooLargeMessage(options: {
 export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		...createBashTool(process.cwd()),
-		description:
-			"Execute a bash command in the current working directory. Enforces a strict 20KB output limit and returns an error if exceeded. Use narrower commands when output is too large.",
 		async execute(toolCallId, params, signal, onUpdate, ctx) {
 			const shellCommandPrefix = SettingsManager.create(ctx.cwd).getShellCommandPrefix();
 			const baseBash = createBashTool(ctx.cwd, {
