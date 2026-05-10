@@ -1,3 +1,7 @@
+import { randomBytes } from "node:crypto";
+import { writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ImageContent, TextContent } from "@mariozechner/pi-ai";
 import {
 	createBashTool,
@@ -9,12 +13,22 @@ import {
 
 const MAX_BASH_OUTPUT_BYTES = 20 * 1024;
 
-function getTextContentBytes(content: Array<TextContent | ImageContent>): number {
-	const text = content
+function getTempFilePath(): string {
+	const id = randomBytes(8).toString("hex");
+	return join(tmpdir(), `pi-bash-${id}.log`);
+}
+
+function getTextContent(content: Array<TextContent | ImageContent>): string {
+	return content
 		.filter((block): block is TextContent => block.type === "text")
 		.map((block) => block.text)
 		.join("\n");
-	return Buffer.byteLength(text, "utf-8");
+}
+
+async function writeTempOutput(text: string): Promise<string> {
+	const path = getTempFilePath();
+	await writeFile(path, text);
+	return path;
 }
 
 function buildTooLargeMessage(options: {
@@ -48,14 +62,19 @@ export default function (pi: ExtensionAPI) {
 			try {
 				const result = await baseBash.execute(toolCallId, params, signal, onUpdate);
 				const details = result.details as BashToolDetails | undefined;
-				const actualBytes = getTextContentBytes(result.content);
+				const outputText = getTextContent(result.content);
+				const actualBytes = Buffer.byteLength(outputText, "utf-8");
 				const fromTruncation = Boolean(details?.truncation?.truncated);
 
 				if (fromTruncation || actualBytes > MAX_BASH_OUTPUT_BYTES) {
+					const fullOutputPath =
+						details?.fullOutputPath ??
+						(actualBytes > MAX_BASH_OUTPUT_BYTES ? await writeTempOutput(outputText) : undefined);
+
 					throw new Error(
 						buildTooLargeMessage({
 							actualBytes,
-							details,
+							details: { ...details, fullOutputPath },
 							fromTruncation,
 						}),
 					);
@@ -69,9 +88,12 @@ export default function (pi: ExtensionAPI) {
 
 				const actualBytes = Buffer.byteLength(error.message, "utf-8");
 				if (actualBytes > MAX_BASH_OUTPUT_BYTES) {
+					const fullOutputPath = await writeTempOutput(error.message);
+
 					throw new Error(
 						buildTooLargeMessage({
 							actualBytes,
+							details: { fullOutputPath },
 							fromTruncation: false,
 						}),
 					);
