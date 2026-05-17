@@ -226,9 +226,8 @@ function accountDisplayName(account: CodexAccount, index: number): string {
 	return `acct-${index}`;
 }
 
-function oauthEmail(account: CodexAccount): string | undefined {
-	if (account.type !== "oauth") return undefined;
-	const parts = account.access.split(".");
+function oauthEmailFromAccess(access: string): string | undefined {
+	const parts = access.split(".");
 	if (parts.length < 2) return undefined;
 	try {
 		const payloadRaw = Buffer.from(parts[1], "base64url").toString("utf-8");
@@ -243,6 +242,11 @@ function oauthEmail(account: CodexAccount): string | undefined {
 	} catch {
 		return undefined;
 	}
+}
+
+function oauthEmail(account: CodexAccount): string | undefined {
+	if (account.type !== "oauth") return undefined;
+	return oauthEmailFromAccess(account.access);
 }
 
 function accountTitle(account: CodexAccount, index: number): string {
@@ -318,11 +322,53 @@ function isFresh(account: CodexAccount): boolean {
 	return (account.minutesUntil5hRefresh ?? 0) === 0 && (account.minutesUntilWeeklyRefresh ?? 0) === 0;
 }
 
-function upsertAccount(accounts: CodexAccount[], credential: ProviderCredential): CodexAccount[] {
-	const id = credentialIdentity(credential);
-	const existing = accounts.find((a) => credentialIdentity(accountToCredential(a)) === id);
-	if (existing) return accounts;
-	return [...accounts, { ...(credential as any), minutesUntil5hRefresh: 0, minutesUntilWeeklyRefresh: 0 }];
+function upsertOrReplaceCurrentAccount(accounts: CodexAccount[], credential: ProviderCredential): CodexAccount[] {
+	if (credential.type === "api_key") {
+		const id = credentialIdentity(credential);
+		const existing = accounts.find((a) => credentialIdentity(accountToCredential(a)) === id);
+		if (existing) return accounts;
+		return [...accounts, { ...(credential as any), minutesUntil5hRefresh: 0, minutesUntilWeeklyRefresh: 0 }];
+	}
+
+	const currentEmail = oauthEmailFromAccess(credential.access)?.toLowerCase();
+	const matchesCurrent = (account: CodexAccount): boolean => {
+		if (account.type !== "oauth") return false;
+
+		// Primary identity: email from access token.
+		// Do NOT merge on accountId because different logins can share accountId.
+		const existingEmail = oauthEmail(account)?.toLowerCase();
+		if (currentEmail && existingEmail) {
+			return existingEmail === currentEmail;
+		}
+
+		// Fallback identity when email is unavailable.
+		return account.refresh === credential.refresh;
+	};
+
+	const updated: CodexAccount[] = [];
+	let inserted = false;
+	for (const account of accounts) {
+		if (!matchesCurrent(account)) {
+			updated.push(account);
+			continue;
+		}
+		if (inserted) {
+			continue;
+		}
+		inserted = true;
+		updated.push({
+			...credential,
+			name: account.name,
+			minutesUntil5hRefresh: 0,
+			minutesUntilWeeklyRefresh: 0,
+		});
+	}
+
+	if (!inserted) {
+		updated.push({ ...(credential as any), minutesUntil5hRefresh: 0, minutesUntilWeeklyRefresh: 0 });
+	}
+
+	return updated;
 }
 
 function detectQuotaWindow(errorMessage: string): QuotaDetection {
@@ -349,7 +395,7 @@ function markExhausted(
 	const detection = detectQuotaWindow(errorMessage);
 	const nowIso = new Date(nowMs).toISOString();
 	const currentId = credentialIdentity(currentCredential);
-	const withCurrent = upsertAccount(accounts, currentCredential);
+	const withCurrent = upsertOrReplaceCurrentAccount(accounts, currentCredential);
 
 	return withCurrent.map((account) => {
 		if (credentialIdentity(accountToCredential(account)) !== currentId) return account;
@@ -537,7 +583,7 @@ async function syncCurrentCredentialIntoPool(ctx: ExtensionContext): Promise<voi
 		const current = ctx.modelRegistry.authStorage.get(PROVIDER_ID);
 		if (!isProviderCredential(current)) return;
 		const nowMs = Date.now();
-		const accounts = refreshCooldowns(upsertAccount(readAccounts(), current), nowMs);
+		const accounts = refreshCooldowns(upsertOrReplaceCurrentAccount(readAccounts(), current), nowMs);
 		writeAccounts(accounts);
 	});
 }
@@ -572,7 +618,7 @@ export default function codexRotator(pi: ExtensionAPI) {
 				return;
 			}
 
-			const accounts = refreshCooldowns(upsertAccount(readAccounts(), current), Date.now());
+			const accounts = refreshCooldowns(upsertOrReplaceCurrentAccount(readAccounts(), current), Date.now());
 			const currentId = credentialIdentity(current);
 			const pick = pickNextFreshAccount(accounts, currentId);
 			if (!pick) {
@@ -642,7 +688,7 @@ export default function codexRotator(pi: ExtensionAPI) {
 					return;
 				}
 
-				let accounts = refreshCooldowns(readAccounts(), Date.now());
+				let accounts = refreshCooldowns(upsertOrReplaceCurrentAccount(readAccounts(), current), Date.now());
 				accounts = markExhausted(accounts, current, errorMessage, Date.now());
 				accounts = refreshCooldowns(accounts, Date.now());
 
@@ -717,6 +763,7 @@ export default function codexRotator(pi: ExtensionAPI) {
 			}
 
 			if (action === "status") {
+				await syncCurrentCredentialIntoPool(ctx);
 				const accounts = refreshCooldowns(readAccounts(), Date.now());
 				const activeCredential = ctx.modelRegistry.authStorage.get(PROVIDER_ID);
 				ctx.ui.notify(
