@@ -2,7 +2,7 @@
 
 Local pi package for personal extensions, skills, prompts, and themes. Registered through the `pi` block in `package.json`.
 
-Updated: `2026-05-16T22:34:24`
+Updated: `2026-05-16T22:58:21`
 
 ## Install
 
@@ -28,6 +28,7 @@ pi install -l /home/archimedes/code/memgrafter-pi-dotfiles
 - `pi-pkm-mode.ts` — PKM mode (`/pkm`)
 - `pi-cbt-mode.ts` — CBT mode (`/cbt`)
 - `pi-redraw-screen.ts` — redraw command (`/redraw`)
+- `timestamp-toolcalls.ts` — append local timestamp to every user message so the agent knows current time (`YYYY-MM-DDTHH:MM:SS`)
 
 Draft or experimental extensions live in `extensions/draft/`.
 
