@@ -12,6 +12,7 @@ Current extensions:
 - `pi-cbt-mode.ts` → toggle Cognitive Behavioral Therapy mode via `/cbt`
 - `pi-redraw-screen.ts` → `/redraw` command and optional keyboard shortcut to redraw the screen
 - `timestamp-toolcalls.ts` → append local timestamp to every user message so the agent knows current time (format: `YYYY-MM-DDTHH:MM:SS`)
+- `tps.ts` → show tokens-per-second and token usage summary after each agent run, vendored from pi-mono
 
 Patterns:
 
