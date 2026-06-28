@@ -33,6 +33,9 @@
 
 ## Parallel Agent Orchestration (tmux)
 
+### Indicator of Active Progress
+When checking tmux panes for pi agent work, look for the token counter line at the bottom: `↑X.Xk ↓X.Xk  X.X%/160k model-name • thinking off`. An upward-moving `↑` byte count means the model is generating tokens. A static `↑` count means the model is stalled or waiting on a tool call response. The `↓` count shows tool output bytes. If both are unchanged, the agent is idle.
+
 Delegate independent work to `pi` agents in separate tmux windows in a new named session. Poll them, steer if they go off track.
 
 ```bash
