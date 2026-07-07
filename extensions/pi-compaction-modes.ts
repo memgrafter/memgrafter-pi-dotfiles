@@ -8,7 +8,7 @@ import { generateSummary } from "@earendil-works/pi-coding-agent";
 
 const KEEP_NO_PRE_COMPACTION_MESSAGES_ID = "__pi_compaction_modes_keep_none__";
 const SETTINGS_SECTION = "pi-compaction-modes";
-const COMPACTION_MODES = ["programmatic", "agentic", "full", "vanilla"] as const;
+const COMPACTION_MODES = ["programmatic", "agentic", "full", "cached", "cached-programmatic", "vanilla"] as const;
 const DEFAULT_COMPACTION_MODE: CompactionMode = "vanilla";
 
 type CompactionMode = (typeof COMPACTION_MODES)[number];
@@ -291,7 +291,7 @@ function parseCommandIntent(customInstructions: string | undefined): CommandInte
 
 	if (normalizedCommand === "set") {
 		if (!normalizedArgument || extra.length > 0) {
-			return { action: "invalid", message: "Usage: /compact [set] programmatic|agentic|full|vanilla" };
+			return { action: "invalid", message: "Usage: /compact [set] programmatic|agentic|full|cached|cached-programmatic|vanilla" };
 		}
 		const mode = normalizeMode(normalizedArgument);
 		return mode
@@ -352,18 +352,24 @@ function writeConfiguredMode(cwd: string, mode: CompactionMode): string {
 	return settingsPath;
 }
 
-function buildCompactUsageLine(currentMode: CompactionMode): string {
-	return `/compact [set] programmatic|agentic|full|vanilla — current: ${currentMode}`;
+function buildCompactUsageLine(): string {
+	return `/compact [set] programmatic|agentic|full|cached|cached-programmatic|vanilla`;
+}
+
+function buildCompactUsageLineWithCurrent(currentMode: CompactionMode): string {
+	return `${buildCompactUsageLine()} — current: ${currentMode}`;
 }
 
 function buildHelpText(currentMode: CompactionMode): string {
 	return [
 		"Compaction modes:",
-		`Usage: ${buildCompactUsageLine(currentMode)}`,
+		`Usage: ${buildCompactUsageLineWithCurrent(currentMode)}`,
 		"- no mode: compact with the configured mode; defaults to vanilla when unset",
 		"- programmatic: ordered markdown tool traces only",
 		"- agentic: agentic summary only",
 		"- full: agentic summary plus programmatic trace",
+		"- cached: Pi default compaction via extension (same summary, no built-in compaction)",
+		"- cached-programmatic: cached summary plus ordered tool trace",
 		"- vanilla: Pi default compaction",
 		"- set <mode>: save the configured mode in settings.json",
 	].join("\n");
@@ -374,10 +380,14 @@ function getCompactArgumentCompletions(prefix: string): AutocompleteItemLike[] |
 		{ value: "programmatic", label: "programmatic", description: "ordered markdown tool traces only" },
 		{ value: "agentic", label: "agentic", description: "agentic summary only" },
 		{ value: "full", label: "full", description: "agentic summary plus programmatic trace" },
+		{ value: "cached", label: "cached", description: "Pi default compaction via extension (same summary, no built-in compaction)" },
+		{ value: "cached-programmatic", label: "cached-programmatic", description: "cached summary plus ordered tool trace" },
 		{ value: "vanilla", label: "vanilla", description: "Pi default compaction" },
 		{ value: "set programmatic", label: "set programmatic", description: "save programmatic as the configured mode" },
 		{ value: "set agentic", label: "set agentic", description: "save agentic as the configured mode" },
 		{ value: "set full", label: "set full", description: "save full as the configured mode" },
+		{ value: "set cached", label: "set cached", description: "save cached as the configured mode" },
+		{ value: "set cached-programmatic", label: "set cached-programmatic", description: "save cached-programmatic as the configured mode" },
 		{ value: "set vanilla", label: "set vanilla", description: "save vanilla as the configured mode" },
 		{ value: "help", label: "help", description: "show compaction mode help" },
 	];
@@ -392,7 +402,7 @@ function replaceCompactCommandDescription(
 	cwd: string,
 ): { items: AutocompleteItemLike[]; prefix: string } | null {
 	if (!suggestions) return null;
-	const description = buildCompactUsageLine(resolveConfiguredMode(cwd));
+	const description = buildCompactUsageLineWithCurrent(resolveConfiguredMode(cwd));
 	return {
 		...suggestions,
 		items: suggestions.items.map((item) =>
@@ -808,6 +818,29 @@ function formatHybridSummary(components: Array<[string, CompactionComponent | un
 		.join("\n\n");
 }
 
+// Cached mode helpers — mirror Pi's built-in file ops logic
+function computeCachedFileLists(fileOps: { read: Set<string>; written: Set<string>; edited: Set<string> }): {
+	readFiles: string[];
+	modifiedFiles: string[];
+} {
+	const modified = new Set([...fileOps.edited, ...fileOps.written]);
+	const readOnly = [...fileOps.read].filter((f) => !modified.has(f)).sort();
+	const modifiedFiles = [...modified].sort();
+	return { readFiles: readOnly, modifiedFiles: modifiedFiles };
+}
+
+function formatCachedFileOperations(readFiles: string[], modifiedFiles: string[]): string {
+	const sections: string[] = [];
+	if (readFiles.length > 0) {
+		sections.push(`<read-files>\n${readFiles.join("\n")}\n</read-files>`);
+	}
+	if (modifiedFiles.length > 0) {
+		sections.push(`<modified-files>\n${modifiedFiles.join("\n")}\n</modified-files>`);
+	}
+	if (sections.length === 0) return "";
+	return `\n\n${sections.join("\n\n")}`;
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => {
 		if (!ctx.hasUI) return;
@@ -845,6 +878,62 @@ export default function (pi: ExtensionAPI) {
 
 		const requestedMode = normalizeMode((event as SessionBeforeCompactEvent & { compactionMode?: unknown }).compactionMode);
 		const mode = requestedMode ?? commandIntent.mode ?? configuredMode;
+
+		// Cached: generate same summary as Pi's built-in compaction, truncate via firstKeptEntryId
+		if (mode === "cached" || mode === "cached-programmatic") {
+			const { firstKeptEntryId, tokensBefore, previousSummary, fileOps, settings } = event.preparation;
+			if (!ctx.model) {
+				ctx.ui.notify("Cached compaction unavailable: no current model.", "warning");
+				return { cancel: true };
+			}
+
+			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
+			if (!auth.ok || !auth.apiKey) {
+				ctx.ui.notify("Cached compaction unavailable: no API key for current model.", "warning");
+				return { cancel: true };
+			}
+
+			const options = DEFAULT_COMPACTION_OPTIONS;
+			const retention = buildRetentionPlan(event.branchEntries, event.preparation, options.retention);
+
+			const baseSummary = await generateSummary(
+				retention.compactedMessages,
+				ctx.model,
+				settings.reserveTokens,
+				auth.apiKey,
+				auth.headers,
+				event.signal,
+				commandIntent.customInstructions,
+				previousSummary,
+			);
+
+			// Append file operations (same as Pi's built-in compaction)
+			const { readFiles, modifiedFiles } = computeCachedFileLists(fileOps);
+			let summaryContent = baseSummary + formatCachedFileOperations(readFiles, modifiedFiles);
+
+			// Add programmatic tool trace for cached-programmatic mode
+			if (mode === "cached-programmatic") {
+				const pathDisplayPolicy = createPathDisplayPolicy();
+				const toolTrace = buildNonAgenticCompaction({
+					messages: retention.compactedMessages,
+					options: options.nonAgentic,
+					pathDisplayPolicy,
+				});
+				summaryContent += "\n\n" + formatComponent("Programmatic", toolTrace);
+			}
+
+			ctx.ui.notify(`Cached compaction captured context (mode: ${mode}).`, "info");
+
+			return {
+				compaction: {
+					summary: summaryContent,
+					firstKeptEntryId,
+					tokensBefore,
+					details: { mode, readFiles, modifiedFiles },
+				},
+			};
+		}
+
 		if (mode === "vanilla") return;
 
 		const options = DEFAULT_COMPACTION_OPTIONS;
