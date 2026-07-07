@@ -5,6 +5,11 @@
 - If you have a file in recent context, do not read it again before editing, it wastes context.
 - If the user says 'mark' or similar, use bash tool `date` to inject a timestamp into the session
 
+## SKILLS
+
+- **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
+- **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing work. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
+
 ## Git & Commits
 
 - Write meaningful commit messages: imperative mood, present tense, ~50 char subject line.
