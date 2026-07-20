@@ -11,6 +11,34 @@
 - **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
 - **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing work. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
 
+## Tickets via REPL
+
+Manage `tk` tickets from the Python REPL using `subprocess` — avoids bash escaping entirely (args passed as a list, not a shell string).
+
+```python
+import subprocess
+
+def tk(*args):
+    r = subprocess.run(['tk', *args], capture_output=True, text=True)
+    return r.stdout.strip()
+
+# Create
+id = tk('create', 'Fix the thing', '-t', 'bug', '-p', '1')
+# id -> 'mul-abc1'
+
+# Start / close
+tk('start', id)
+tk('close', id)
+
+# Add note (works with $(), <>, backticks, quotes — no escaping)
+tk('add-note', id, 'Fix: run `$()`, check `<div>`, match "quotes"')
+
+# Query
+tk('ls', '--status', 'open')
+tk('show', id)
+tk('dep', id, 'mul-xyz9')
+```
+
 ## Git & Commits
 
 - Write meaningful commit messages: imperative mood, present tense, ~50 char subject line.
@@ -52,10 +80,7 @@ tmux new-window -t <name>:2 -c . -n <label>  # creates window 2
 
 # Boot + send task (two steps: boot pi, poll until ready, then send)
 tmux send-keys -t <name>:2 'pi' C-m
-# Poll immediately — look for the bottom status bar: `↑X ↓X ... model • thinking`
-# If C-m fails (tmux extended-keys off), use `-- Enter` instead
 tmux capture-pane -t <name>:2 -p -S -20
-# pi harness auto-loads ~/.agents/AGENTS.md before first message
 tmux send-keys -t <name>:2 "<your task>" C-m
 
 # Poll progress
@@ -70,7 +95,21 @@ tmux kill-session -t <name>```
 
 **Key rules:**
 
-- **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys`, and use `-- Enter` instead. Inform the user of tmux send-keys exceptions before continuing.
+- **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys` and use the Enter fallback below. Inform the user of tmux send-keys exceptions before continuing.
+
+### Enter Fallback (when extended-keys is off)
+
+Use two separate `send-keys` calls — never combine text and Enter in one command:
+
+```bash
+tmux send-keys -t <name>:2 'pi'
+tmux send-keys -t <name>:2 Enter
+
+tmux send-keys -t <name>:2 "<your task>"
+tmux send-keys -t <name>:2 Enter
+```
+
+Do NOT use `-- Enter` or quote Enter. Just `tmux send-keys -t target Enter`.
 - **Poll actively.** Check panes every 30-60s during generation. If an agent is stuck or going off track, send a correction — don't wait for it to finish wrong.
 - **No need to inject AGENTS.md or set system prompts.** The pi harness loads `~/.agents/AGENTS.md` automatically before the first message.
 - **No need to kill sessions first.** Create fresh session names (`spot_N`, `run_N`) to avoid conflicts.
