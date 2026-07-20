@@ -99,17 +99,22 @@ tmux kill-session -t <name>```
 
 ### Enter Fallback (when extended-keys is off)
 
-Use two separate `send-keys` calls — never combine text and Enter in one command:
+**Poll for the shell prompt first** — sending keys before the pane is ready produces garbage (`pi--`, `pi\n`, etc).
 
 ```bash
+# Create session
+tmux new-session -d -s <name> -c .
+
+# Poll until shell prompt appears (🔥 is the prompt marker), then send
 tmux send-keys -t <name>:2 'pi'
 tmux send-keys -t <name>:2 Enter
 
+# Send task — two separate calls, never combine text and Enter
 tmux send-keys -t <name>:2 "<your task>"
 tmux send-keys -t <name>:2 Enter
 ```
 
-Do NOT use `-- Enter` or quote Enter. Just `tmux send-keys -t target Enter`.
+Do NOT use `-- Enter`, `C-m`, or quote Enter. Just `tmux send-keys -t target Enter`.
 - **Poll actively.** Check panes every 30-60s during generation. If an agent is stuck or going off track, send a correction — don't wait for it to finish wrong.
 - **No need to inject AGENTS.md or set system prompts.** The pi harness loads `~/.agents/AGENTS.md` automatically before the first message.
 - **No need to kill sessions first.** Create fresh session names (`spot_N`, `run_N`) to avoid conflicts.
