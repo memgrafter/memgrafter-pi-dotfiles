@@ -5,6 +5,7 @@
 - Do not declare success. Tell the user what to check.
 - If you have a file in recent context, do not read it again before editing, it wastes context.
 - If the user says 'mark' or similar, use bash tool `date` to inject a timestamp into the session
+- **Always use timeouts on waits and loops** — even long-running ones. Never `sleep 90` or unbounded `while` loops. Use `sleep 15` polling with a max iteration count (e.g., 40 iterations = 10 min), or `timeout` command.
 
 ## SKILLS
 
@@ -95,6 +96,7 @@ tmux kill-session -t <name>```
 
 **Key rules:**
 
+- **Poll for boot, don't sleep.** Bash and pi launch quickly. Poll `tmux capture-pane` every 3 seconds for the shell prompt (`🔥`) or pi version string (`pi v`). Never `sleep 60` or `sleep 90` waiting for boot — that wastes context and risks abort.
 - **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys` and use the Enter fallback below. Inform the user of tmux send-keys exceptions before continuing.
 
 ### Enter Fallback (when extended-keys is off)
