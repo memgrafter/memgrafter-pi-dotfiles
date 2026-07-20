@@ -1,5 +1,6 @@
 ## Workflows
 
+- NEVER run build commands.
 - Build for production from the start; rework is largest source of waste; we can't afford rework, we must do it right from the start.
 - Do not declare success. Tell the user what to check.
 - If you have a file in recent context, do not read it again before editing, it wastes context.
@@ -69,18 +70,18 @@ tmux kill-session -t <name>```
 
 **Key rules:**
 
-- **Windows are 1-indexed.** `sess:1` is the initial window. `new-window -t sess:2` creates index 2.
-- **Use `C-m`, not `Enter`.** `Enter` sends the literal string "Enter"; `C-m` sends an actual carriage return. If tmux extended-keys is off, use `-- Enter` instead.
+- **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys`, and use `-- Enter` instead. Inform the user of tmux send-keys exceptions before continuing.
 - **Poll actively.** Check panes every 30-60s during generation. If an agent is stuck or going off track, send a correction — don't wait for it to finish wrong.
 - **No need to inject AGENTS.md or set system prompts.** The pi harness loads `~/.agents/AGENTS.md` automatically before the first message.
 - **No need to kill sessions first.** Create fresh session names (`spot_N`, `run_N`) to avoid conflicts.
-- **Use the intended model** Use the same model as your pi session model (check your own tmux pane or ask the user) with `--model <model>`** unless explicitly given a model string.
+- **Use the intended model** Use the same model as your pi session model (never guess, check your own tmux pane or ask the user) with `--model <model>`** unless explicitly given a model string.
 
 ## Tools
 
 - Use CodeMapper `cm` cli tool for tree-sitter based code reading and exploring. See `cm --help` for usage.
-- Prefer `grep`/`rg` for searching; `find` for locating files by pattern.
-- Use `git status` / `git diff` to verify changes before committing.
+- Prefer rg (fallback grep) for searching
+- Prefer fd (fallback find) for locating files by pattern
+- Use `git status` / `git diff` to verify only your changes are staged before committing, never use `git add -A` or a variant, dirty state belongs to other agents.
 
 ## Communication
 

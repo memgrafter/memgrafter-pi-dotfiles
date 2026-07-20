@@ -28,35 +28,39 @@ Use this when you want a belt-and-suspenders recovery point beyond normal git wo
 
 ## Usage
 
-Create a snapshot:
+Create a snapshot. Set `REPO_DIR` to the path of the repo:
 
 ```bash
+REPO_DIR=~/code/myproject
+
+mkdir -p ~/backups
 timestamp=$(date +%Y-%m-%d_%H-%M-%S)
-tar -czvf ~/backups/autocatalytic-infra_${timestamp}.tar.gz -C ~/code autocatalytic-infra
+REPO_NAME=$(basename "$REPO_DIR")
+tar -czvf ~/backups/${REPO_NAME}_${timestamp}.tar.gz -C "$(dirname "$REPO_DIR")" "$REPO_NAME"
 ```
 
 Restore/inspect a snapshot:
 
 ```bash
-tar -tzvf ~/backups/autocatalytic-infra_YYYY-MM-DD_HH-MM-SS.tar.gz
-tar -xzvf ~/backups/autocatalytic-infra_YYYY-MM-DD_HH-MM-SS.tar.gz -C /tmp
+tar -tzvf ~/backups/<repo>_<timestamp>.tar.gz
+tar -xzvf ~/backups/<repo>_<timestamp>.tar.gz -C /tmp
 ```
 
 ## Examples
 
 ```bash
 ls -lh ~/backups/
-diff -r /tmp/autocatalytic-infra ~/code/autocatalytic-infra
+diff -r /tmp/<repo> ~/code/<repo>
 ```
 
 ## Output
 
-- Artifact: `~/backups/autocatalytic-infra_<timestamp>.tar.gz`
+- Artifact: `~/backups/<repo>_<timestamp>.tar.gz`
 - Includes tracked files, `.git/`, and untracked files under the repo directory
 
 ## How it works (brief)
 
-1. Archives `~/code/autocatalytic-infra` with `tar`
+1. Resolves the repo name via `basename` and archives it with `tar`
 2. Compresses to a timestamped `.tar.gz` in `~/backups`
 3. Recovery is inspect/extract/verify before replacement
 
