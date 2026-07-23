@@ -6,6 +6,7 @@
 - If you have a file in recent context, do not read it again before editing, it wastes context.
 - If the user says 'mark' or similar, use bash tool `date` to inject a timestamp into the session
 - **Always use timeouts on waits and loops** — even long-running ones. Never `sleep 90` or unbounded `while` loops. Use `sleep 15` polling with a max iteration count (e.g., 40 iterations = 10 min), or `timeout` command.
+- **When calling LLMs, use their default token budget as a first-class default.** Prefer omitting token-budget parameters entirely; explicit estimates are fiddly and should only be supplied when the task specifically requires a constrained budget.
 
 ## SKILLS
 
