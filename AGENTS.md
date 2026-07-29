@@ -1,3 +1,7 @@
+# Content
+
+- When generating user facing content, use Simplified Technical English (ASD-STE100).
+
 ## Workflows
 
 - NEVER run build commands.
@@ -39,6 +43,34 @@ tk('add-note', id, 'Fix: run `$()`, check `<div>`, match "quotes"')
 tk('ls', '--status', 'open')
 tk('show', id)
 tk('dep', id, 'mul-xyz9')
+```
+
+## Knowledge Registries via REPL
+
+Manage `kr` registries from the Python REPL using `subprocess` — avoids shell escaping and passes each argument unchanged.
+
+```python
+import subprocess
+
+def kr(*args):
+    r = subprocess.run(['kr', *args], capture_output=True, text=True)
+    return r.stdout.strip()
+
+# Create
+kr('registry', 'create', 'auth-knowledge')
+kr('source', 'add', 'auth-knowledge', 'file:///path/auth.rs#L1-L80', '--label', 'auth module', '--tags', 'core')
+
+# Inspect / retrieve
+kr('registry', 'show', 'auth-knowledge')
+kr('search', 'auth-knowledge', 'authenticate', '-c', '2')
+kr('dump', 'auth-knowledge')
+
+# Update / remove
+kr('source', 'list', 'auth-knowledge')
+kr('source', 'remove', 'auth-knowledge', '0')
+
+# Delete
+kr('registry', 'delete', 'auth-knowledge')
 ```
 
 ## Git & Commits
@@ -97,7 +129,7 @@ tmux kill-session -t <name>```
 - **No need to kill sessions first.** Create fresh session names (`spot_N`, `run_N`) to avoid conflicts.
 - **No need to inject AGENTS.md or set system prompts.** The pi harness loads `~/.agents/AGENTS.md` automatically before the first message.
 - **Use the intended model** Use the same model as your pi session model (never guess, check your own tmux pane or ask the user) with `--model <model>`** unless explicitly given a model string.
-- **Poll for boot, don't sleep.** Bash and pi launch quickly. Poll `tmux capture-pane` every 3 seconds for the shell prompt (`🔥`) or pi version string (`pi v`). Never `sleep 60` or `sleep 90` waiting for boot — that wastes context and risks abort.
+- **Poll for boot, don't sleep.** Bash and pi launch quickly. Poll `tmux capture-pane` every 3 seconds for the shell prompt, 🔥 or $PS1 in ~/.bashrc, or pi version string (`pi v`). Never `sleep 60` or `sleep 90` waiting for boot — that wastes context and risks abort.
 - **Poll actively.** Check panes every 30-60s during generation. If an agent is stuck or going off track, send a correction — don't wait for it to finish wrong.
 - **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys` and use the Enter fallback below. Inform the user of tmux send-keys exceptions before continuing.
 
