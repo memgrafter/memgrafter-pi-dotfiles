@@ -15,7 +15,7 @@
 ## SKILLS
 
 - **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
-- **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing work. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
+- **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing medium+ software development. Do not use tickets for small changes and documentation. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
 
 ## Tickets via REPL
 
