@@ -55,15 +55,23 @@ else is a projection.
 
 ## Round record (contract for ingestion)
 
-ts, sessionId, sessionFile basename, cwd, provider, model, durationMs, runs,
-toolCalls, stopReason (last assistant message), errorMessage (first seen),
-usage sums (input/output/cacheRead/cacheWrite/reasoning/totalTokens), cost sums
-(input/output/cacheRead/cacheWrite/total).
+ts, sessionId, sessionFile basename, cwd, provider, model, models (unique list,
+model_select / per-message), thinkingLevel (round start, updated on
+thinking_level_select), durationMs, runs, turnCount, turns (per-turn
+latencyMs + usage), toolCalls, tools (per-tool calls/errors/durationMs),
+stopReason, errorMessage, usage sums, cost sums, kind ("round" |
+"compaction" | "branch_summary").
 
-Accumulation happens on `turn_end` (assistant messages only). `agent_start`
-initializes/activates the round; `session_shutdown` flushes a mid-flight round
-as `stopReason: "interrupted"` (safety net — normally `agent_settled` fires
-even on abort because `_runAgentPrompt` has `finally { _emitAgentSettled() }`).
+Accumulation happens on `turn_end` (assistant messages only) + tool
+lifecycle events. `agent_start` initializes/activates the round;
+`session_shutdown` flushes a mid-flight round as `stopReason: "interrupted"`
+(safety net — normally `agent_settled` fires even on abort because
+`_runAgentPrompt` has `finally { _emitAgentSettled() }`).
+
+Compaction usage is folded into an active round; standalone compaction and
+branch-summary model calls (which happen outside agent rounds — tree nav
+requires idle, and /compact can run anytime) are emitted as their own records
+with `kind` set, so every model call is accounted for.
 
 ## Concurrency (60+ sessions, processes not always active)
 
@@ -102,11 +110,9 @@ even on abort because `_runAgentPrompt` has `finally { _emitAgentSettled() }`).
 1. **Token accounting on failed streams is understated by design**: failure
    messages hardcode `EMPTY_USAGE`, so tokens consumed before a stream dies are
    not counted. Only fixable provider-side; the extension cannot recover them.
-2. **Compaction / branch-summary usage is NOT captured**: `compact()` runs a
-   direct model call outside the agent loop (agent-session.ts:2118-2123), so no
-   `turn_end` fires; its usage lives in the `CompactionEntry`
-   (`session_compact` event). Fix: fold `session_compact.compactionEntry.usage`
-   into the round record. Open ticket.
+2. **Crash mid-round loses the round** (no `agent_settled` line ever written) —
+   inherent to append-on-settle; acceptable. Session-file-derived views recover
+   partial messages if `message_end` persisted before the crash.
 3. **Crash mid-round loses the round** (no `agent_settled` line ever written) —
    inherent to append-on-settle; acceptable. Session-file-derived views recover
    partial messages if `message_end` persisted before the crash.
@@ -123,27 +129,31 @@ even on abort because `_runAgentPrompt` has `finally { _emitAgentSettled() }`).
 
 ## Tickets
 
-- mpd-ndds [P2] — simplify extension to append-only rounds.jsonl (implementation
-  of this decision).
-- mpd-7d8i [P3] — add thinking level to round record (`ctx.thinkingLevel` at
-  `agent_start`; note `thinking_level_select` mid-round changes).
-- mpd-2xvb [P3] — add context length at round start
-  (`ctx.getContextUsage().tokens`; estimate, not provider-exact).
-- Compaction-usage capture (limitation 2) — no ticket yet.
+- mpd-ndds [closed] — simplify extension to append-only rounds.jsonl.
+- mpd-7d8i [P3, open] — add thinking level to round record. IMPLEMENTED in this
+  round (thinkingLevel at agent_start + thinking_level_select updates); ticket
+  covers verification/review.
+- mpd-2xvb [P3, open] — add context length at round start
+  (`ctx.getContextUsage().tokens`; estimate, not provider-exact). Deliberately
+  NOT implemented — user scoped to real data only.
+- Round-record completeness (this round's work, no ticket): compaction/
+  branch-summary usage capture, models list, per-turn usage/latency, tool-level
+  breakdown. Runtime-tested in tmux.
 
-## Test plan / results (simplified append-only extension)
+## Test plan / results (all five real-data features)
 
-Manual tmux test with deepseek provider, `deepseek-v4-flash` model, two parallel pi agents.
+Manual tmux test with deepseek provider, `deepseek-v4-flash` model.
 
-- [x] Normal round (with tool call): one record appended; toolCalls counted, real usage (cacheRead from DeepSeek cache hits).
-- [x] Second round in same session: same sessionId, records accumulate in rounds.jsonl.
+- [x] Normal round (with tool calls): turnCount, per-turn latencyMs + usage, per-tool breakdown (`tools: {bash: {calls, errors, durationMs}}`), thinkingLevel, models list.
+- [x] Multi-turn round: turns latencies per LLM call (e.g. 3 turns: [2468, 1563, 1385]ms), toolCalls 2, bash durationMs summed.
+- [x] Compaction: `/compact` produced a standalone `kind: "compaction"` record with the summarization call's usage (451 tokens) when idle. (Triggered by temporarily lowering `compaction.keepRecentTokens` to 1000 in settings; restored after. Default manual /compact refuses small sessions: "Nothing to compact (session too small)" below the keep-recent floor.)
 - [x] Abort test (Esc mid-stream): record with `stopReason: "aborted"`, `errorMessage: "Operation aborted"`, zero usage (EMPTY_USAGE path confirmed).
-- [x] Provider error path: accidental 400 (invalid model from a mangled boot) captured as `stopReason: "error"` + errorMessage + zero usage — the error round never blocks the agent loop.
-- [x] Two parallel pi agents (separate sessions): both append to the single shared rounds.jsonl, distinct sessionIds, no interleaving corruption.
-- [x] Only rounds.jsonl is written (no .prom files) — confirmed after the simplification.
+- [x] Provider error path: earlier accidental 400 captured as `stopReason: "error"` + errorMessage + zero usage.
+- [x] Parallel agents (pre-simplification suite): shared rounds.jsonl, distinct sessionIds.
 
 ### tmux harness gotchas (cost most of the test time)
 
 - Shell boot: send command + `C-m` in a SINGLE `tmux send-keys` call. Splitting text and Enter/C-m into two calls intermittently loses the newline, and the next typed text then appends to the shell line — mangling the `--model` flag ("deepseek-v4-flashUse").
 - pi TUI prompt submission: two calls (text, then `Enter` key name) — the inverse of the shell.
 - Multiple stale pi processes from aborted attempts keep writing to the shared rounds.jsonl; always `pkill -f 'pi -e <ext>'` and verify zero processes before a clean run.
+- Settings key is `compaction`, not `compact`; manual /compact needs context above the keep-recent-tokens floor.
