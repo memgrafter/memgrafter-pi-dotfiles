@@ -23,15 +23,23 @@
  *   --frag                 start with frag mode enabled (default role)
  *   /frag                  show current mode and role
  *   /frag on | off         enable/disable frag mode (warns if the system prompt
- *                          will change: Continue | Fork | Cancel)
+ *                          will change: Continue | Fork | Cancel) and persists
+ *                          to the optional "frag" key in settings.json
  *   /frag set <role>       switch role (requires frag mode enabled; errors if off)
  *   /frag status           show current mode and role
  *   /frag show             display the current system prompt (ephemeral, not stored in session)
+ *
+ * New sessions default frag on via the optional "frag" settings key
+ * (project .pi/settings.json → global ~/.pi/agent/settings.json); set
+ * "frag": { "enabled": false } to opt out. /frag on|off persists there.
  *
  * Typing `/frag ` in the editor shows autocomplete options for roles and
  * subcommands, mirroring the compaction extension's `/compact` autocomplete.
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -156,6 +164,73 @@ const state: FragState = {
 
 /** In-memory tracker so the role message is injected only on role change. */
 let lastInjectedRole: string | undefined;
+
+// ============================================================================
+// Settings persistence (optional "frag" key in settings.json)
+// ============================================================================
+
+const SETTINGS_SECTION = "frag";
+
+function getProjectSettingsPath(cwd: string): string {
+	return join(cwd, ".pi", "settings.json");
+}
+
+function getGlobalSettingsPath(): string {
+	return join(homedir(), ".pi", "agent", "settings.json");
+}
+
+function readJsonObject(filePath: string): Record<string, unknown> | undefined {
+	if (!existsSync(filePath)) {
+		return undefined;
+	}
+	const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as unknown;
+	return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+		? (parsed as Record<string, unknown>)
+		: undefined;
+}
+
+function readEnabledFromSettings(filePath: string): boolean | undefined {
+	const settings = readJsonObject(filePath);
+	const section = settings?.[SETTINGS_SECTION];
+	if (!section || typeof section !== "object" || Array.isArray(section)) {
+		return undefined;
+	}
+	const enabled = (section as { enabled?: unknown }).enabled;
+	return typeof enabled === "boolean" ? enabled : undefined;
+}
+
+/** Default when the setting is absent: frag on for new sessions. */
+const DEFAULT_SETTINGS_ENABLED = true;
+
+function resolveConfiguredEnabled(cwd: string): boolean {
+	return (
+		readEnabledFromSettings(getProjectSettingsPath(cwd)) ??
+		readEnabledFromSettings(getGlobalSettingsPath()) ??
+		DEFAULT_SETTINGS_ENABLED
+	);
+}
+
+function getSettingsPathToUpdate(cwd: string): string {
+	const projectSettings = readJsonObject(getProjectSettingsPath(cwd));
+	return projectSettings?.[SETTINGS_SECTION] !== undefined
+		? getProjectSettingsPath(cwd)
+		: getGlobalSettingsPath();
+}
+
+function writeConfiguredEnabled(cwd: string, enabled: boolean): void {
+	const settingsPath = getSettingsPathToUpdate(cwd);
+	const settings = readJsonObject(settingsPath) ?? {};
+	const section = settings[SETTINGS_SECTION];
+	const nextSection =
+		section && typeof section === "object" && !Array.isArray(section)
+			? section
+			: {};
+
+	settings[SETTINGS_SECTION] = { ...nextSection, enabled };
+
+	mkdirSync(dirname(settingsPath), { recursive: true });
+	writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
+}
 
 function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): { enabled: boolean; role?: string } | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
@@ -483,6 +558,8 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 				}
 				state.enabled = target;
 				state.pendingApply = { enabled: target, role: state.role };
+				// The toggle is the user's intent — persist it for new sessions too.
+				writeConfiguredEnabled(ctx.cwd, target);
 				await ctx.fork(leaf.id, { position: "at" });
 				return;
 			}
@@ -491,6 +568,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		state.enabled = target;
 		state.pendingApply = undefined;
 		persistState();
+		writeConfiguredEnabled(ctx.cwd, target);
 		updateStatus(ctx);
 		if (ctx.hasUI) {
 			ctx.ui.notify(
@@ -530,6 +608,12 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			state.role = DEFAULT_ROLE_ID;
 			// Persist so a resumed session restores frag mode without the flag.
 			persistState();
+		} else {
+			// New session: default from the optional "frag" settings key
+			// (project .pi/settings.json → global ~/.pi/agent/settings.json),
+			// defaulting to enabled when unset.
+			state.enabled = resolveConfiguredEnabled(ctx.cwd);
+			state.role = DEFAULT_ROLE_ID;
 		}
 
 		lastInjectedRole = scanLastInjectedRole(ctx.sessionManager.getEntries());
