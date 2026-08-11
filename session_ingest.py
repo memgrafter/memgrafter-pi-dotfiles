@@ -233,6 +233,12 @@ def parse_session_file(path: Path, table: dict) -> dict:
         elif etype == "message":
             msg = entry.get("message") or {}
             role = msg.get("role")
+            # Old-format session files lack model_change entries but carry
+            # model/provider on messages — capture as fallback.
+            if msg.get("model"):
+                model = msg.get("model")
+            if msg.get("provider"):
+                provider = msg.get("provider")
             if role == "user":
                 current = {
                     "start_ts": _to_ms(entry.get("timestamp") or msg.get("timestamp")),
@@ -625,18 +631,56 @@ def reprice(args: argparse.Namespace, table: dict) -> int:
 
     Uses per-turn pricing for rounds (pi's semantics) and direct pricing for
     compactions. Priced records are left untouched; nothing is appended or
-    removed — only the cost objects are filled in.
+    removed — only the cost objects are filled in. Records whose model is
+    unknown ("?", old-format files without model_change entries) are
+    recovered from their session file (message-level model/provider fields)
+    when --sessions-dir is available.
     """
     text = read_stable(args.metrics)
     records = load_metrics_records(args.metrics)
+    parsed_cache: dict[str, dict | None] = {}
     updated = 0
     delta = 0.0
+    recovered = 0
+
+    def recover(rec: dict) -> tuple[str | None, str | None]:
+        sf = rec.get("sessionFile")
+        if not sf:
+            return None, None
+        if sf not in parsed_cache:
+            parsed_cache[sf] = None
+            dirs = [d for d in (args.sessions_dir, DEFAULT_SESSIONS) if d and d.is_dir()]
+            for d in dirs:
+                for f in d.rglob(sf):
+                    try:
+                        parsed_cache[sf] = parse_session_file(f, table)
+                    except Exception:
+                        parsed_cache[sf] = None
+                    break
+                if parsed_cache[sf]:
+                    break
+        parsed = parsed_cache[sf]
+        if parsed:
+            return parsed.get("model"), parsed.get("provider")
+        return None, None
+
     for rec in records:
         if (rec.get("cost") or {}).get("total") not in (0, 0.0, None):
             continue
         if not any((rec.get("usage") or {}).get(k) for k in COST_FIELDS):
             continue
-        cost_cfg = rate_for(table, rec.get("provider"), rec.get("model"))
+        provider, model = rec.get("provider"), rec.get("model")
+        cost_cfg = rate_for(table, provider, model)
+        if cost_cfg is None and model in (None, "?"):
+            new_model, new_provider = recover(rec)
+            if new_model:
+                rec["model"] = new_model
+                rec["models"] = [new_model]
+                if new_provider:
+                    rec["provider"] = new_provider
+                provider, model = new_provider, new_model
+                cost_cfg = rate_for(table, provider, model)
+                recovered += 1
         if cost_cfg is None:
             continue
         turns = rec.get("turns")
@@ -654,7 +698,8 @@ def reprice(args: argparse.Namespace, table: dict) -> int:
         rec["cost"] = cost
         updated += 1
         delta += cost["total"]
-    print(f"reprice: {updated} record(s) filled, +${delta:.4f} total")
+    print(f"reprice: {updated} record(s) filled, +${delta:.4f} total"
+          + (f" ({recovered} model recovered from session files)" if recovered else ""))
     if updated == 0:
         return 0
     backup_path = None
