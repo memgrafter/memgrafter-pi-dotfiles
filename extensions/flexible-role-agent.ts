@@ -6,8 +6,10 @@
  *   frag — role mode. When enabled, the system prompt's pi role sentence is
  *          replaced by a stable "context builder" that frames the agent as
  *          role-flexible, and the active role is delivered as a post-history
- *          custom message (`System: <role content>`). Role changes never touch
- *          the system prompt, so they never bust the provider cache.
+ *          custom message: content carries a `[frag role: <id>]` header plus
+ *          `System: <role content>`, and a registered TUI renderer displays a
+ *          single `[frag role: <id>]` header line. Role changes never touch the
+ *          system prompt, so they never bust the provider cache.
  *   trim — prompt trimming. When enabled, the "Guidelines:" and
  *          "Pi documentation" sections are stripped from the system prompt
  *          (the pi role sentence is kept — trim removes pi-specific prose, it
@@ -45,6 +47,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
+import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -286,7 +290,9 @@ function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["
 
 /**
  * Find the most recently injected frag role message in session history so we do
- * not re-inject the same role after a restart or fork.
+ * not re-inject the same role after a restart or fork. Parses the
+ * `[frag role: <id>]` header; falls back to the legacy `System:\n<role.prompt>`
+ * body match for sessions created before the header format.
  */
 function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): string | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
@@ -304,6 +310,10 @@ function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManag
 							.map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text?: unknown }).text ?? "") : ""))
 							.join("")
 					: "";
+		const headerMatch = text.match(/\[frag role: ([a-z0-9-]+)\]/);
+		if (headerMatch && getRole(headerMatch[1]!)) {
+			return headerMatch[1]!;
+		}
 		for (const role of ROLES) {
 			if (text.includes(`System:\n${role.prompt}`)) {
 				return role.id;
@@ -446,6 +456,31 @@ async function confirmSystemPromptChange(ctx: ExtensionContext, from: string, to
 // ============================================================================
 
 export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
+	// Replace the default custom-message rendering (which shows a generic
+	// `[frag-role]` label above the content, duplicating the header) with the
+	// same box and colors, using a single `[frag role: <id>]` header line.
+	pi.registerMessageRenderer(FRAG_ROLE_MESSAGE_TYPE, (message, options, theme) => {
+		const details = message.details as { role?: unknown } | undefined;
+		const content = typeof message.content === "string" ? message.content : "";
+		const headerMatch = content.match(/^\[frag role: ([a-z0-9-]+)\]\n\n/);
+		const roleId =
+			(typeof details?.role === "string" ? details.role : undefined) ??
+			headerMatch?.[1] ??
+			ROLES.find((role) => content.includes(`System:\n${role.prompt}`))?.id;
+		const body = headerMatch ? content.slice(headerMatch[0].length) : content;
+		const header = roleId ? `[frag role: ${roleId}]` : `[${FRAG_ROLE_MESSAGE_TYPE}]`;
+
+		// Replicate the default custom-message styling: purple background box,
+		// bold label color, markdown body in customMessageText.
+		const box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
+		box.addChild(new Text(theme.fg("customMessageLabel", `\x1b[1m${header}\x1b[22m`), 0, 0));
+		box.addChild(new Spacer(1));
+		box.addChild(new Markdown(body, 0, 0, getMarkdownTheme(), {
+			color: (text) => theme.fg("customMessageText", text),
+		}));
+		return box;
+	});
+
 	pi.registerFlag("frag", {
 		description: "Start in flexible role agent mode",
 		type: "boolean",
@@ -780,7 +815,9 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			return { systemPrompt };
 		}
 
-		// Inject the role as a post-history message, but only on role change.
+		// Inject the role as a post-history message, but only on role change. The
+		// `[frag role: <id>]` header names the active role for the LLM; the TUI
+		// renderer shows that same header as a single line (no duplication).
 		if (state.role !== lastInjectedRole) {
 			const role = getRole(state.role);
 			if (role) {
@@ -789,7 +826,8 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 					systemPrompt,
 					message: {
 						customType: FRAG_ROLE_MESSAGE_TYPE,
-						content: `System:\n${role.prompt}`,
+						content: `[frag role: ${role.id}]\n\nSystem:\n${role.prompt}`,
+						details: { role: role.id },
 						display: true,
 					},
 				};
