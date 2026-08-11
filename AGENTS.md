@@ -12,6 +12,19 @@
 - **Always use timeouts on waits and loops** — even long-running ones. Never `sleep 90` or unbounded `while` loops. Use `sleep 15` polling with a max iteration count (e.g., 40 iterations = 10 min), or `timeout` command.
 - **When calling LLMs, use their default token budget as a first-class default.** Prefer omitting token-budget parameters entirely; explicit estimates are fiddly and should only be supplied when the task specifically requires a constrained budget.
 
+## Agent Guidelines
+
+- Use bash for file operations like ls, rg, find
+- Use read to examine files instead of cat or sed.
+- Inspect PI_* environment variables for current model and session details.
+- Use edit for precise changes (edits[].oldText must match exactly)
+- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls
+- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.
+- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.
+- Use write only for new files or complete rewrites.
+- Be concise in your responses
+- Show file paths clearly when working with files
+
 ## SKILLS
 
 - **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
