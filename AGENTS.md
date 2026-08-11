@@ -117,6 +117,7 @@ kr('registry', 'delete', 'auth-knowledge')
 - Keep docs close to the code: README at repo root, inline docs where needed.
 - Update docs with every meaningful feature change; stale docs are worse than no docs.
 - Use examples over prose when possible — a runnable example teaches faster.
+- Match the repo's existing documentation voice: if its docs are terse bullets, keep additions terse — no long-form prose, blockquotes, or citations where a line or two suffices.
 
 ## Parallel Agent Orchestration (tmux)
 
