@@ -113,10 +113,7 @@ with `kind` set, so every model call is accounted for.
 2. **Crash mid-round loses the round** (no `agent_settled` line ever written) —
    inherent to append-on-settle; acceptable. Session-file-derived views recover
    partial messages if `message_end` persisted before the crash.
-3. **Crash mid-round loses the round** (no `agent_settled` line ever written) —
-   inherent to append-on-settle; acceptable. Session-file-derived views recover
-   partial messages if `message_end` persisted before the crash.
-4. **Follow-up/steer messages**: each queued follow-up runs its own
+3. **Follow-up/steer messages**: each queued follow-up runs its own
    `_runAgentPrompt` and gets its own `agent_settled` => counted as a separate
    round. Arguably correct (it is a separate prompt).
 5. **`runs` is a proxy for retries** — it also counts compaction continuations.
@@ -126,6 +123,43 @@ with `kind` set, so every model call is accounted for.
    (via script) is the recovery path.
 7. **Growth**: `rounds.jsonl` grows unboundedly (~1KB/round). Rotation is an
    ingestion-side concern (like any log).
+
+## Cost & ingestion caveats (verified Aug 2026, `session_ingest.py`)
+
+These come from backfilling a year of history and pricing it; they affect how
+`cost` in any record should be read.
+
+1. **`cost` is computed client-side, not provider-reported.** pi multiplies
+   token usage by the model definition's `cost` table (per-1M rates in
+   `models.json` / the model store). A model definition **without a `cost`
+   field silently records $0** — the original deepseek bug (fixed by adding
+   rates to `~/.pi/agent/models.json`).
+2. **Pricing changes need a reload.** `models.json` is loaded once at process
+   start; a hot-reload was observed (model-registry async reload), but restart
+   is the reliable path. Until then, new rounds use the old rates.
+3. **Rate tables are snapshots and drift.** `models.json`, the model store,
+   and the ingester's embedded `DEFAULT_RATES` can all disagree after a
+   provider reprices. `session_ingest.py --reprice` refills zero-cost records
+   from the current table; `--rates-file` pins an identical table across
+   machines.
+4. **Two record sources have different `ts` semantics.** pi-written records
+   use `ts` = flush time; records the ingester synthesizes from session files
+   use `ts` = round start (user-message time) and carry `"ingested": true`.
+   Dedupe across sources is by `(sessionId, kind, ts)` — a compaction shares
+   its `ts` with the round it summarizes, so `kind` must be part of the key.
+5. **Same model id, different economics per provider.** A model can be
+   self-hosted on one provider ($0) and a paid API on another (crusoecloud vs
+   vastai/vert both serve `deepseek-ai/Deepseek-V4-Flash`). Rates must be
+   provider-qualified `(provider, model)` — never bare-model — or self-hosted
+   usage gets overpriced.
+6. **Unpriced hosted APIs record $0 silently** — indistinguishable from
+   self-hosted in the file alone. Before trusting totals, check the ingester's
+   "unpriced models" report (crusoecloud was 512M tokens of paid usage at $0).
+7. **`?` provider / missing provider field** (old-format sessions): cannot be
+   classified or priced; stays $0.
+8. **Zero-usage rounds are genuinely $0** — aborted/failed rounds carry
+   `EMPTY_USAGE` (limitation 1 above), so a $0 record is correct there, not a
+   pricing gap.
 
 ## Tickets
 
