@@ -155,8 +155,10 @@ These come from backfilling a year of history and pricing it; they affect how
 6. **Unpriced hosted APIs record $0 silently** — indistinguishable from
    self-hosted in the file alone. Before trusting totals, check the ingester's
    "unpriced models" report (crusoecloud was 512M tokens of paid usage at $0).
-7. **`?` provider / missing provider field** (old-format sessions): cannot be
-   classified or priced; stays $0.
+7. **`?` provider / missing provider field** (old-format sessions without
+   `model_change` entries): recoverable — message-level `model`/`provider`
+   fields exist on assistant messages; `session_ingest.py --reprice`
+   re-derives them from the session file and prices the record.
 8. **Zero-usage rounds are genuinely $0** — aborted/failed rounds carry
    `EMPTY_USAGE` (limitation 1 above), so a $0 record is correct there, not a
    pricing gap.
