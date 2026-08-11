@@ -11,6 +11,9 @@
  *   - the context builder (the original pi prompt with the coding-agent role
  *     sentence replaced by flexible-role framing; pi branding is kept for now),
  *     which is fully role-neutral.
+ *   - the "Guidelines" and "Pi documentation" sections are stripped: they are
+ *     pi-specific prose the model does not need once frag framing is active.
+ *     Tool definitions still reach the model via the provider payload.
  * The active role — including the initial one — is always delivered as a
  * post-history message (`System: <role content>`), so every role injection
  * looks the same and the system prompt never changes.
@@ -23,6 +26,7 @@
  *                          will change: Continue | Fork | Cancel)
  *   /frag set <role>       switch role (requires frag mode enabled; errors if off)
  *   /frag status           show current mode and role
+ *   /frag show             display the current system prompt (ephemeral, not stored in session)
  *
  * Typing `/frag ` in the editor shows autocomplete options for roles and
  * subcommands, mirroring the compaction extension's `/compact` autocomplete.
@@ -90,20 +94,45 @@ const PI_ROLE_SENTENCE = `You are an expert coding assistant operating inside pi
 const FRAG_MARKER = "flexible-role agent";
 
 /**
+ * Remove a prompt section that starts at `header` and runs to the next blank
+ * line. Returns the prompt unchanged when the header is not found. Sections are
+ * delimited by blank lines in buildSystemPrompt's output, so the first "\n\n"
+ * after the header is the section boundary.
+ */
+function stripPromptSection(prompt: string, header: string): string {
+	const start = prompt.indexOf(header);
+	if (start === -1) {
+		return prompt;
+	}
+	const lineStart = prompt.lastIndexOf("\n", start) + 1;
+	const end = prompt.indexOf("\n\n", start);
+	if (end === -1) {
+		return prompt.slice(0, lineStart);
+	}
+	return prompt.slice(0, lineStart) + prompt.slice(end + 2);
+}
+
+/**
  * Strip-with-fallback: replace the pi role sentence with the context builder
  * framing; if the current prompt is not the pi default (custom --system-prompt),
- * prepend the framing and keep the custom content. The output is fully
- * role-neutral and stable across turns, so the cache is preserved once frag
- * mode is active.
+ * prepend the framing and keep the custom content. Also remove the
+ * "Guidelines" and "Pi documentation" sections (pi-specific prose). The output
+ * is fully role-neutral and stable across turns, so the cache is preserved once
+ * frag mode is active.
  */
 function buildFragSystemPrompt(current: string): string {
 	if (current.includes(FRAG_MARKER)) {
 		return current;
 	}
 
-	return current.startsWith(PI_ROLE_SENTENCE)
+	let prompt = current.startsWith(PI_ROLE_SENTENCE)
 		? CONTEXT_BUILDER_FRAMING + current.slice(PI_ROLE_SENTENCE.length)
 		: `${CONTEXT_BUILDER_FRAMING}\n\n${current}`;
+
+	prompt = stripPromptSection(prompt, "Guidelines:");
+	prompt = stripPromptSection(prompt, "Pi documentation");
+
+	return prompt;
 }
 
 // ============================================================================
@@ -221,6 +250,7 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 		{ value: "on", label: "on", description: "Enable frag mode" },
 		{ value: "off", label: "off", description: "Disable frag mode" },
 		{ value: "status", label: "status", description: "Show current mode and role" },
+		{ value: "show", label: "show", description: "Display the current system prompt (ephemeral, not stored)" },
 		{ value: "help", label: "help", description: "Show usage" },
 	];
 	const normalizedPrefix = prefix.trim().toLowerCase();
@@ -232,7 +262,7 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 }
 
 function buildFragUsageLine(): string {
-	return `flexible role agent mode (current: ${state.enabled ? `frag: ${roleLabel(state.role)}` : "off"}) — /frag on|off|status, /frag set ${ROLES.map((r) => r.id).join("|")}`;
+	return `flexible role agent mode (current: ${state.enabled ? `frag: ${roleLabel(state.role)}` : "off"}) — /frag on|off|status|show, /frag set ${ROLES.map((r) => r.id).join("|")}`;
 }
 
 function replaceFragCommandDescription(
@@ -316,7 +346,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 	};
 
 	pi.registerCommand("frag", {
-		description: "Flexible role agent mode (use: /frag, /frag on|off|status, /frag set <role>)",
+		description: "Flexible role agent mode (use: /frag, /frag on|off|status|show, /frag set <role>)",
 		handler: async (args, ctx) => {
 			const trimmed = args.trim();
 			const lower = trimmed.toLowerCase();
@@ -329,6 +359,15 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 					);
 				}
 				updateStatus(ctx);
+				return;
+			}
+
+			if (lower === "show") {
+				if (ctx.hasUI) {
+					const current = ctx.getSystemPrompt();
+					const prompt = state.enabled ? buildFragSystemPrompt(current) : current;
+					ctx.ui.notify(prompt, "info");
+				}
 				return;
 			}
 
