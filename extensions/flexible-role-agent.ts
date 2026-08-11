@@ -1,37 +1,42 @@
 /**
  * Pi Flexible Role Agent Extension
  *
- * Replaces the system prompt with a stable "context builder" that frames the
- * agent as role-flexible, and delivers the active role as a post-history custom
- * message (`System: <role content>`). Role changes never touch the system
- * prompt, so they never bust the provider cache.
+ * Two independent, persistent switches:
  *
- * Roles are defined as plain TypeScript strings at the top of this file.
- * The system prompt is composed of:
- *   - the context builder (the original pi prompt with the coding-agent role
- *     sentence replaced by flexible-role framing; pi branding is kept for now),
- *     which is fully role-neutral.
- *   - the "Guidelines" and "Pi documentation" sections are stripped: they are
- *     pi-specific prose the model does not need once frag framing is active.
- *     Tool definitions still reach the model via the provider payload.
- * The active role — including the initial one — is always delivered as a
- * post-history message (`System: <role content>`), so every role injection
- * looks the same and the system prompt never changes.
+ *   frag — role mode. When enabled, the system prompt's pi role sentence is
+ *          replaced by a stable "context builder" that frames the agent as
+ *          role-flexible, and the active role is delivered as a post-history
+ *          custom message (`System: <role content>`). Role changes never touch
+ *          the system prompt, so they never bust the provider cache.
+ *   trim — prompt trimming. When enabled, the "Guidelines:" and
+ *          "Pi documentation" sections are stripped from the system prompt
+ *          (the pi role sentence is kept — trim removes pi-specific prose, it
+ *          does not rebrand). Generally intended for new sessions.
+ *
+ * The switches are decoupled: trim off + frag on frames the prompt for role
+ * delivery without stripping the pi-specific sections. Both toggles change the
+ * system prompt, so both warn with Continue | Fork | Cancel when toggled
+ * mid-session. Tool definitions still reach the model via the provider payload.
  *
  * Usage:
  *   pi -e ./extensions/flexible-role-agent.ts
  *   --frag                 start with frag mode enabled (default role)
- *   /frag                  show current mode and role
+ *   /frag                  show current mode, role, and trim state
  *   /frag on | off         enable/disable frag mode (warns if the system prompt
  *                          will change: Continue | Fork | Cancel) and persists
  *                          to the optional "frag" key in settings.json
  *   /frag set <role>       switch role (requires frag mode enabled; errors if off)
- *   /frag status           show current mode and role
+ *   /frag trim on | off    enable/disable prompt trimming (strips the
+ *                          "Guidelines" and "Pi documentation" sections;
+ *                          generally intended for new sessions)
+ *   /frag status           show current mode, role, and trim state
  *   /frag show             display the current system prompt (ephemeral, not stored in session)
  *
- * New sessions default frag on via the optional "frag" settings key
- * (project .pi/settings.json → global ~/.pi/agent/settings.json); set
- * "frag": { "enabled": false } to opt out. /frag on|off persists there.
+ * Both switches default off. Opt in via the optional "frag" settings key
+ * (project .pi/settings.json → global ~/.pi/agent/settings.json):
+ * "frag": { "enabled": true } and/or "frag": { "trim": true }. /frag on|off
+ * and /frag trim on|off persist there. Session entries carry
+ * { enabled, role, trim }; a missing trim field means not trimmed.
  *
  * Typing `/frag ` in the editor shows autocomplete options for roles and
  * subcommands, mirroring the compaction extension's `/compact` autocomplete.
@@ -121,12 +126,12 @@ function stripPromptSection(prompt: string, header: string): string {
 }
 
 /**
- * Strip-with-fallback: replace the pi role sentence with the context builder
- * framing; if the current prompt is not the pi default (custom --system-prompt),
- * prepend the framing and keep the custom content. Also remove the
- * "Guidelines" and "Pi documentation" sections (pi-specific prose). The output
- * is fully role-neutral and stable across turns, so the cache is preserved once
- * frag mode is active.
+ * Replace the pi role sentence with the context builder framing; if the current
+ * prompt is not the pi default (custom --system-prompt), prepend the framing
+ * and keep the custom content. The output is role-neutral and stable across
+ * turns, so the cache is preserved once frag mode is active. Stripping the
+ * "Guidelines" and "Pi documentation" sections is controlled separately by
+ * trim mode (see buildTrimmedSystemPrompt).
  */
 function buildFragSystemPrompt(current: string): string {
 	if (current.includes(FRAG_MARKER)) {
@@ -137,7 +142,17 @@ function buildFragSystemPrompt(current: string): string {
 		? CONTEXT_BUILDER_FRAMING + current.slice(PI_ROLE_SENTENCE.length)
 		: `${CONTEXT_BUILDER_FRAMING}\n\n${current}`;
 
-	prompt = stripPromptSection(prompt, "Guidelines:");
+	return prompt;
+}
+
+/**
+ * Strip the "Guidelines" and "Pi documentation" sections from the system
+ * prompt. Everything else — the pi role sentence and pi branding — is kept.
+ * Idempotent: sections already absent (e.g. a custom --system-prompt) are left
+ * alone, so this is safe to apply on every turn.
+ */
+function buildTrimmedSystemPrompt(current: string): string {
+	let prompt = stripPromptSection(current, "Guidelines:");
 	prompt = stripPromptSection(prompt, "Pi documentation");
 
 	return prompt;
@@ -153,13 +168,15 @@ const FRAG_ROLE_MESSAGE_TYPE = "frag-role";
 interface FragState {
 	enabled: boolean;
 	role: string;
+	trim: boolean;
 	/** Applied on next session_start (used by the Fork flow). */
-	pendingApply?: { enabled: boolean; role: string };
+	pendingApply?: { enabled?: boolean; role?: string; trim?: boolean };
 }
 
 const state: FragState = {
 	enabled: false,
 	role: DEFAULT_ROLE_ID,
+	trim: false,
 };
 
 /** In-memory tracker so the role message is injected only on role change. */
@@ -189,25 +206,33 @@ function readJsonObject(filePath: string): Record<string, unknown> | undefined {
 		: undefined;
 }
 
-function readEnabledFromSettings(filePath: string): boolean | undefined {
+function readFragSettings(filePath: string): { enabled?: boolean; trim?: boolean } | undefined {
 	const settings = readJsonObject(filePath);
 	const section = settings?.[SETTINGS_SECTION];
 	if (!section || typeof section !== "object" || Array.isArray(section)) {
 		return undefined;
 	}
 	const enabled = (section as { enabled?: unknown }).enabled;
-	return typeof enabled === "boolean" ? enabled : undefined;
+	const trim = (section as { trim?: unknown }).trim;
+	return {
+		enabled: typeof enabled === "boolean" ? enabled : undefined,
+		trim: typeof trim === "boolean" ? trim : undefined,
+	};
 }
 
-/** Default when the setting is absent: frag on for new sessions. */
-const DEFAULT_SETTINGS_ENABLED = true;
+/** Default when the "enabled" setting is absent: off (frag is opt-in via settings). */
+const DEFAULT_SETTINGS_ENABLED = false;
 
-function resolveConfiguredEnabled(cwd: string): boolean {
-	return (
-		readEnabledFromSettings(getProjectSettingsPath(cwd)) ??
-		readEnabledFromSettings(getGlobalSettingsPath()) ??
-		DEFAULT_SETTINGS_ENABLED
-	);
+/** Default when the "trim" setting is absent: off. */
+const DEFAULT_SETTINGS_TRIM = false;
+
+function resolveConfiguredFrag(cwd: string): { enabled: boolean; trim: boolean } {
+	const project = readFragSettings(getProjectSettingsPath(cwd));
+	const globalSettings = readFragSettings(getGlobalSettingsPath());
+	return {
+		enabled: project?.enabled ?? globalSettings?.enabled ?? DEFAULT_SETTINGS_ENABLED,
+		trim: project?.trim ?? globalSettings?.trim ?? DEFAULT_SETTINGS_TRIM,
+	};
 }
 
 function getSettingsPathToUpdate(cwd: string): string {
@@ -217,7 +242,7 @@ function getSettingsPathToUpdate(cwd: string): string {
 		: getGlobalSettingsPath();
 }
 
-function writeConfiguredEnabled(cwd: string, enabled: boolean): void {
+function writeConfiguredFrag(cwd: string, patch: { enabled?: boolean; trim?: boolean }): void {
 	const settingsPath = getSettingsPathToUpdate(cwd);
 	const settings = readJsonObject(settingsPath) ?? {};
 	const section = settings[SETTINGS_SECTION];
@@ -226,13 +251,13 @@ function writeConfiguredEnabled(cwd: string, enabled: boolean): void {
 			? section
 			: {};
 
-	settings[SETTINGS_SECTION] = { ...nextSection, enabled };
+	settings[SETTINGS_SECTION] = { ...nextSection, ...patch };
 
 	mkdirSync(dirname(settingsPath), { recursive: true });
 	writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
 }
 
-function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): { enabled: boolean; role?: string } | undefined {
+function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): { enabled: boolean; role?: string; trim?: boolean } | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
 		const entry = entries[index] as { type?: string; customType?: string; data?: unknown };
 		if (entry.type !== "custom" || entry.customType !== FRAG_ENTRY_TYPE) {
@@ -245,8 +270,13 @@ function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["
 		}
 		const enabled = (data as { enabled?: unknown }).enabled;
 		const role = (data as { role?: unknown }).role;
+		const trim = (data as { trim?: unknown }).trim;
 		if (typeof enabled === "boolean") {
-			return { enabled, role: typeof role === "string" ? role : undefined };
+			return {
+				enabled,
+				role: typeof role === "string" ? role : undefined,
+				trim: typeof trim === "boolean" ? trim : undefined,
+			};
 		}
 		return undefined;
 	}
@@ -288,7 +318,8 @@ function updateStatus(ctx: ExtensionContext): void {
 	if (!ctx.hasUI) {
 		return;
 	}
-	ctx.ui.setStatus("frag", state.enabled ? ctx.ui.theme.fg("accent", `frag: ${state.role}`) : undefined);
+	const statusText = `frag: ${state.enabled ? state.role : "off"}, trim: ${state.trim ? "on" : "off"}`;
+	ctx.ui.setStatus("frag", state.enabled ? ctx.ui.theme.fg("accent", statusText) : statusText);
 }
 
 // ============================================================================
@@ -326,7 +357,10 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 		{ value: "set analyst", label: "set analyst", description: "Switch role to analyst" },
 		{ value: "on", label: "on", description: "Enable frag mode" },
 		{ value: "off", label: "off", description: "Disable frag mode" },
-		{ value: "status", label: "status", description: "Show current mode and role" },
+		{ value: "trim", label: "trim", description: "Show trim state" },
+		{ value: "trim on", label: "trim on", description: "Enable prompt trimming (new sessions)" },
+		{ value: "trim off", label: "trim off", description: "Disable prompt trimming" },
+		{ value: "status", label: "status", description: "Show current mode, role, and trim state" },
 		{ value: "show", label: "show", description: "Display the current system prompt (ephemeral, not stored)" },
 		{ value: "help", label: "help", description: "Show usage" },
 	];
@@ -339,7 +373,7 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 }
 
 function buildFragUsageLine(): string {
-	return `flexible role agent mode (current: ${state.enabled ? `frag: ${roleLabel(state.role)}` : "off"}) — /frag on|off|status|show, /frag set ${ROLES.map((r) => r.id).join("|")}`;
+	return `flexible role agent mode (current: frag: ${state.enabled ? roleLabel(state.role) : "off"}, trim: ${state.trim ? "on" : "off"}) — /frag on|off|status|show, /frag trim on|off (new sessions), /frag set ${ROLES.map((r) => r.id).join("|")}`;
 }
 
 function replaceFragCommandDescription(
@@ -419,7 +453,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 	});
 
 	const persistState = (): void => {
-		pi.appendEntry(FRAG_ENTRY_TYPE, { enabled: state.enabled, role: state.role });
+		pi.appendEntry(FRAG_ENTRY_TYPE, { enabled: state.enabled, role: state.role, trim: state.trim });
 	};
 
 	pi.registerCommand("frag", {
@@ -431,7 +465,9 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			if (trimmed === "" || lower === "status") {
 				if (ctx.hasUI) {
 					ctx.ui.notify(
-						state.enabled ? `frag mode enabled. Role: ${roleLabel(state.role)}` : "frag mode disabled",
+						state.enabled
+							? `frag mode enabled. Role: ${roleLabel(state.role)}. trim: ${state.trim ? "on" : "off"}`
+							: `frag mode disabled. trim: ${state.trim ? "on" : "off"}`,
 						"info",
 					);
 				}
@@ -442,7 +478,13 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			if (lower === "show") {
 				if (ctx.hasUI) {
 					const current = ctx.getSystemPrompt();
-					const prompt = state.enabled ? buildFragSystemPrompt(current) : current;
+					let prompt = current;
+					if (state.enabled) {
+						prompt = buildFragSystemPrompt(prompt);
+					}
+					if (state.trim) {
+						prompt = buildTrimmedSystemPrompt(prompt);
+					}
 					ctx.ui.notify(prompt, "info");
 				}
 				return;
@@ -451,7 +493,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			if (lower === "help") {
 				if (ctx.hasUI) {
 					ctx.ui.notify(
-						`${buildFragUsageLine()}\nRole updates are delivered as a post-history message and never touch the system prompt.`,
+						`${buildFragUsageLine()}\nRole updates are delivered as a post-history message and never touch the system prompt.\n/frag trim on|off strips the Guidelines and Pi documentation sections from the system prompt; it is generally intended for new sessions.`,
 						"info",
 					);
 				}
@@ -465,6 +507,26 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 
 			if (lower === "off" || lower === "disable" || lower === "disabled") {
 				await setEnabled(ctx, false);
+				return;
+			}
+
+			if (lower === "trim") {
+				if (ctx.hasUI) {
+					ctx.ui.notify(
+						`trim mode ${state.trim ? "enabled" : "disabled"} — system prompt is ${state.trim ? "trimmed" : "not trimmed"}.`,
+						"info",
+					);
+				}
+				return;
+			}
+
+			if (lower === "trim on" || lower === "trim enable" || lower === "trim enabled") {
+				await setTrim(ctx, true);
+				return;
+			}
+
+			if (lower === "trim off" || lower === "trim disable" || lower === "trim disabled") {
+				await setTrim(ctx, false);
 				return;
 			}
 
@@ -559,7 +621,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 				state.enabled = target;
 				state.pendingApply = { enabled: target, role: state.role };
 				// The toggle is the user's intent — persist it for new sessions too.
-				writeConfiguredEnabled(ctx.cwd, target);
+				writeConfiguredFrag(ctx.cwd, { enabled: target });
 				await ctx.fork(leaf.id, { position: "at" });
 				return;
 			}
@@ -568,7 +630,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		state.enabled = target;
 		state.pendingApply = undefined;
 		persistState();
-		writeConfiguredEnabled(ctx.cwd, target);
+		writeConfiguredFrag(ctx.cwd, { enabled: target });
 		updateStatus(ctx);
 		if (ctx.hasUI) {
 			ctx.ui.notify(
@@ -578,16 +640,82 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	/**
+	 * Toggle prompt trimming. Changing trim changes the system prompt, so it may
+	 * bust a warm cache — warn (Continue | Fork | Cancel), mirroring the warning
+	 * /frag on|off has. Generally intended for new sessions.
+	 */
+	async function setTrim(ctx: ExtensionCommandContext, target: boolean): Promise<void> {
+		if (state.trim === target) {
+			if (ctx.hasUI) {
+				ctx.ui.notify(`trim mode already ${target ? "enabled" : "disabled"}.`, "info");
+			}
+			return;
+		}
+
+		// Content-based cache-bust detection. The session file does not store the
+		// system prompt, but ctx.getSystemPrompt() returns the effective prompt of
+		// the last request; a trimmed prompt lacks the "Guidelines:" section.
+		// Warn iff this toggle actually changes the system prompt.
+		const currentlyTrimmed = !ctx.getSystemPrompt().includes("Guidelines:");
+		if (currentlyTrimmed !== target) {
+			const from = currentlyTrimmed ? "trimmed" : "untrimmed";
+			const to = target ? "trimmed" : "untrimmed";
+			const choice = await confirmSystemPromptChange(ctx, from, to);
+			if (choice === "cancel") {
+				return;
+			}
+			if (choice === "fork") {
+				// Fork the session so the old conversation keeps its warm cache.
+				// session_start("fork") applies pendingApply and persists to the fork.
+				const leaf = ctx.sessionManager.getLeafEntry();
+				if (!leaf) {
+					if (ctx.hasUI) {
+						ctx.ui.notify("Cannot fork: no session entry to fork from.", "warning");
+					}
+					return;
+				}
+				state.trim = target;
+				state.pendingApply = { trim: target };
+				// The toggle is the user's intent — persist it for new sessions too.
+				writeConfiguredFrag(ctx.cwd, { trim: target });
+				await ctx.fork(leaf.id, { position: "at" });
+				return;
+			}
+		}
+
+		state.trim = target;
+		state.pendingApply = undefined;
+		persistState();
+		writeConfiguredFrag(ctx.cwd, { trim: target });
+		updateStatus(ctx);
+		if (ctx.hasUI) {
+			ctx.ui.notify(
+				target
+					? "trim mode enabled — the Guidelines and Pi documentation sections will be stripped from the system prompt. Note: generally intended for new sessions."
+					: "trim mode disabled",
+				"info",
+			);
+		}
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		// Fork flow: apply the pending change to the forked session.
 		if (state.pendingApply) {
-			state.enabled = state.pendingApply.enabled;
-			state.role = state.pendingApply.role;
+			if (state.pendingApply.enabled !== undefined) {
+				state.enabled = state.pendingApply.enabled;
+			}
+			if (state.pendingApply.role !== undefined) {
+				state.role = state.pendingApply.role;
+			}
+			if (state.pendingApply.trim !== undefined) {
+				state.trim = state.pendingApply.trim;
+			}
 			state.pendingApply = undefined;
 			persistState();
 			if (ctx.hasUI) {
 				ctx.ui.notify(
-					state.enabled ? `Forked session — frag mode enabled. Role: ${roleLabel(state.role)}` : "Forked session — frag mode disabled.",
+					`Forked session — frag: ${state.enabled ? `enabled, role ${roleLabel(state.role)}` : "disabled"}, trim: ${state.trim ? "on" : "off"}`,
 					"info",
 				);
 			}
@@ -603,16 +731,24 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			if (persisted.role && getRole(persisted.role)) {
 				state.role = persisted.role;
 			}
+			if (persisted.trim !== undefined) {
+				// Absent trim in the entry means not trimmed (session default off).
+				state.trim = persisted.trim;
+			}
 		} else if (pi.getFlag("frag") === true) {
 			state.enabled = true;
 			state.role = DEFAULT_ROLE_ID;
+			// trim still comes from settings when starting via the flag.
+			state.trim = resolveConfiguredFrag(ctx.cwd).trim;
 			// Persist so a resumed session restores frag mode without the flag.
 			persistState();
 		} else {
-			// New session: default from the optional "frag" settings key
-			// (project .pi/settings.json → global ~/.pi/agent/settings.json),
-			// defaulting to enabled when unset.
-			state.enabled = resolveConfiguredEnabled(ctx.cwd);
+			// New session: both switches default off; opt in via the optional
+			// "frag" settings key (project .pi/settings.json →
+			// global ~/.pi/agent/settings.json).
+			const configured = resolveConfiguredFrag(ctx.cwd);
+			state.enabled = configured.enabled;
+			state.trim = configured.trim;
 			state.role = DEFAULT_ROLE_ID;
 		}
 
@@ -626,11 +762,23 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("before_agent_start", async (event) => {
-		if (!state.enabled) {
+		if (!state.enabled && !state.trim) {
 			return undefined;
 		}
 
-		const systemPrompt = buildFragSystemPrompt(event.systemPrompt);
+		// Trim and frag are decoupled: frag frames the prompt for role delivery,
+		// trim strips the pi-specific prose sections.
+		let systemPrompt = event.systemPrompt;
+		if (state.enabled) {
+			systemPrompt = buildFragSystemPrompt(systemPrompt);
+		}
+		if (state.trim) {
+			systemPrompt = buildTrimmedSystemPrompt(systemPrompt);
+		}
+
+		if (!state.enabled) {
+			return { systemPrompt };
+		}
 
 		// Inject the role as a post-history message, but only on role change.
 		if (state.role !== lastInjectedRole) {
