@@ -185,18 +185,20 @@ function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["
  */
 function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): string | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
-		const entry = entries[index] as { type?: string; message?: { role?: string; customType?: string; content?: unknown } };
-		if (entry.type !== "message" || entry.message?.role !== "custom" || entry.message.customType !== FRAG_ROLE_MESSAGE_TYPE) {
+		const entry = entries[index] as { type?: string; customType?: string; content?: unknown };
+		if (entry.type !== "custom_message" || entry.customType !== FRAG_ROLE_MESSAGE_TYPE) {
 			continue;
 		}
 
-		const content = entry.message.content;
-		if (!Array.isArray(content)) {
-			continue;
-		}
-		const text = content
-			.map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text?: unknown }).text ?? "") : ""))
-			.join("");
+		const content = entry.content;
+		const text =
+			typeof content === "string"
+				? content
+				: Array.isArray(content)
+					? content
+							.map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text?: unknown }).text ?? "") : ""))
+							.join("")
+					: "";
 		for (const role of ROLES) {
 			if (text.includes(`System:\n${role.prompt}`)) {
 				return role.id;
