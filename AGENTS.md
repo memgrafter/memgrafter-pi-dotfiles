@@ -18,7 +18,11 @@
 - **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing medium+ software development. Do not use tickets for small changes and documentation. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
 - **tmux-orchestration** — delegate work to parallel `pi` agents in tmux windows: session setup, boot polling, task dispatch, steering, Enter fallback. See [SKILL.md](skills/tmux-orchestration/SKILL.md).
 
-## Tickets via REPL
+## repl & repl-manage
+
+Use an existing long-lived repl or make a new repl, on demand.  See [SKILL.md](~/.agents/skills/replmux/SKILL.md).
+
+### Tickets via REPL
 
 Manage `tk` tickets from the Python REPL using `subprocess` — avoids bash escaping entirely (args passed as a list, not a shell string).
 
@@ -46,7 +50,7 @@ tk('show', id)
 tk('dep', id, 'mul-xyz9')
 ```
 
-## Knowledge Registries via REPL
+### Knowledge Registries via REPL
 
 Manage `kr` registries from the Python REPL using `subprocess` — avoids shell escaping and passes each argument unchanged.
 
