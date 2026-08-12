@@ -938,7 +938,8 @@ export default function (pi: ExtensionAPI) {
 		if (danceState.status === "captured") {
 			setTimeout(() => {
 				if (danceState?.status !== "captured") return;
-				danceState = undefined;
+				// Keep the captured state: phase 3 consumes it when session_before_compact
+				// fires inside compact(). Clearing it here would restart phase 1 in a loop.
 				ctx.compact();
 			}, 0);
 			return;
