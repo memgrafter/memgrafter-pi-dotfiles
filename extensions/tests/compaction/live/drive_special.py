@@ -21,7 +21,7 @@ FILLER = os.path.join(HARNESS, "runs", "context_filler.txt")
 OVERFLOW_FILLER = os.path.join(HARNESS, "runs", "overflow_filler.txt")
 
 DANCE_PROMPTS = [
-    "Reply with ONLY a standalone structured summary of the context so far",
+    "The messages above are a conversation to summarize",
     "Produce only the agentic state needed to continue this coding session",
     "Write a handoff doc for a new agent to continue the session",
 ]
@@ -208,7 +208,7 @@ def scenario_escabort():
     log("context loaded (~130k tokens)")
     send("/compact")
     log("sent /compact; waiting for injected message in pane (real-time)")
-    ok = wait_pane_text("Reply with ONLY a standalone structured summary", 90, "injected message in pane")
+    ok = wait_pane_text("The messages above are a conversation to summarize", 90, "injected message in pane")
     log(f"injected message seen in pane: {ok}")
     time.sleep(1)
     send_key("Escape")
@@ -280,7 +280,7 @@ def scenario_modearg_reverse():
     summary_injected = [
         u for u in es
         if u.get("type") == "message" and u.get("message", {}).get("role") == "user"
-        and msg_text(u.get("message", {})).startswith("Reply with ONLY a standalone structured summary")
+        and msg_text(u.get("message", {})).startswith("The messages above are a conversation to summarize")
     ]
     log(f"summary prompt injected: {len(summary_injected) == 1} (expect True)")
     send("Reply with exactly: POST_COMPACT_OK")

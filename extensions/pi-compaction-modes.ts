@@ -819,8 +819,38 @@ function isDanceMode(mode: CompactionMode): mode is DanceMode {
 	return DANCE_MODE_SET.has(mode);
 }
 
-const DANCE_SUMMARY_MESSAGE =
-	"Reply with ONLY a standalone structured summary of the context so far... do not use tools, do not do any work.";
+const DANCE_SUMMARY_MESSAGE = `The messages above are a conversation to summarize. Create a structured context checkpoint summary that another LLM will use to continue the work.
+
+Use this EXACT format:
+
+## Goal
+[What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
+
+## Constraints & Preferences
+- [Any constraints, preferences, or requirements mentioned by user]
+- [Or "(none)" if none were mentioned]
+
+## Progress
+### Done
+- [x] [Completed tasks/changes]
+
+### In Progress
+- [ ] [Current work]
+
+### Blocked
+- [Issues preventing progress, if any]
+
+## Key Decisions
+- **[Decision]**: [Brief rationale]
+
+## Next Steps
+1. [Ordered list of what should happen next]
+
+## Critical Context
+- [Any data, examples, or references needed to continue]
+- [Or "(none)" if not applicable]
+
+Keep each section concise. Preserve exact file paths, function names, and error messages. do not use tools, do not do any work.`;
 const DANCE_AGENTIC_MESSAGE =
 	"Produce only the agentic state needed to continue this coding session. Focus on goals, constraints, decisions, progress, blockers, next steps, and critical context. Do not include ordered tool-call traces; those are provided separately in the programmatic section. do not use tools, do not do any work.";
 const DANCE_HANDOFF_MESSAGE =

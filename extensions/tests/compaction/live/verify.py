@@ -22,7 +22,7 @@ HARNESS = os.path.dirname(os.path.abspath(__file__))
 SESS_DIR = os.path.join(HARNESS, "runs", MODE, "sessions")
 
 DANCE_PROMPTS = [
-    "Reply with ONLY a standalone structured summary of the context so far",
+    "The messages above are a conversation to summarize",
     "Produce only the agentic state needed to continue this coding session",
     "Write a handoff doc for a new agent to continue the session",
 ]
