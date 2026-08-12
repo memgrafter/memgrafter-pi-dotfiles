@@ -1,8 +1,8 @@
 ---
 id: mpd-sr7t
-status: open
+status: closed
 deps: []
-links: []
+links: [mpd-zu1e, mpd-1kl2]
 created: 2026-08-12T22:00:18Z
 type: task
 priority: 1
@@ -15,7 +15,7 @@ Ran a full live-test campaign of all compaction modes in `extensions/pi-compacti
 
 ## Findings needing fixes
 
-1. `cached` mode summary prompt is flaky on deepseek-v4-flash: 2 of 4 runs replied with a 1-token degenerate echo (e.g. "FILLER_OK" / "ACK") instead of a summary, and the extension captured it verbatim as the compaction content. There is no quality guard on the captured summary reply. Agentic/handoff prompts were reliable. Fix: add a minimum-length/quality guard on the captured summary (retry once or reword DANCE_SUMMARY_MESSAGE).
+1. `cached` mode summary prompt is flaky on deepseek-v4-flash: ~~2 of 4 runs replied with a 1-token degenerate echo (e.g. "FILLER_OK" / "ACK") instead of a summary, and the extension captured it verbatim as the compaction content. There is no quality guard on the captured summary reply.~~ **FIXED 2026-08-12** — DANCE_SUMMARY_MESSAGE rewritten to pi's SUMMARIZATION_PROMPT format (eafc3ca); live-verified (see Notes). Remaining defense-in-depth (quality guard) tracked in mpd-zu1e.
 
 2. `/compact <mode>` phase-3 mode resolution footgun: ~~pi never populates event.compactionMode, so phase 3 falls back to the configured mode. The requested mode only selects the injected dance prompt; if configured mode differs, the recorded details.mode and tooltrace section do not match the request.~~ **FIXED 2026-08-12** — see Notes. Fix: thread the requested mode through danceState into phase 3.
 
@@ -72,3 +72,7 @@ FINDING 1 FIXED in b1d3f3f (verified live):
 **2026-08-12T23:25Z — flaky cached summary prompt addressed**
 
 DANCE_SUMMARY_MESSAGE rewritten to mirror pi's default SUMMARIZATION_PROMPT (core/compaction/compaction.ts): named sections (Goal, Constraints & Preferences, Progress, Key Decisions, Next Steps, Critical Context), EXACT-format contract, "(none)" fallbacks, plus the shared "do not use tools, do not do any work" tail. The old prompt ("Reply with ONLY a standalone structured summary...") had no content contract, which let deepseek-v4-flash return a 1-token echo (2/4 runs). Prompt body is byte-identical to pi's 879-char SUMMARIZATION_PROMPT before the appended tail. Test prefix checks updated in extensions/tests/compaction/live/ (drive_special.py, verify.py) and ~/pi-compact-test/. `bunx tsc` typecheck passes. Live re-test of cached / cached-summary-tooltraces VERIFIED 2026-08-12 (new prompt): both ALL PASS via extensions/tests/compaction/live (run.sh narrowed to the two modes). Summaries follow the EXACT format (all six sections; Programmatic section for the tooltraces mode), lengths 2328/1781 chars, no degenerate echoes, cacheRead ratio 0.99, details.mode matches, post-compact follow-up works.
+
+**2026-08-12T23:30:11Z**
+
+Closing: both findings fixed and verified live. Finding 1 (flaky summary prompt) fixed by prompt rewrite (eafc3ca) + live verification (results-2026-08-12-summary-prompt.md). Finding 2 (/compact <mode> phase-3) fixed by b1d3f3f + modearg/modearg-reverse. Follow-ups tracked: mpd-zu1e (quality guard), mpd-b8nt (keepRecentTokens), mpd-1kl2 (pi TUI paste crash).
