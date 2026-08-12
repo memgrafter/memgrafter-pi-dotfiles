@@ -10,6 +10,8 @@ const SETTINGS_SECTION = "pi-compaction-modes";
 const COMPACTION_MODES = [
 	"programmatic",
 	"cached",
+	"cached-agentic",
+	"cached-agentic-tooltraces",
 	"cached-handoff",
 	"cached-handoff-tooltraces",
 	"cached-summary-tooltraces",
@@ -284,7 +286,7 @@ function parseCommandIntent(customInstructions: string | undefined): CommandInte
 
 	if (normalizedCommand === "set") {
 		if (!normalizedArgument || extra.length > 0) {
-			return { action: "invalid", message: "Usage: /compact [set] programmatic|cached|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla" };
+			return { action: "invalid", message: "Usage: /compact [set] programmatic|cached|cached-agentic|cached-agentic-tooltraces|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla" };
 		}
 		const mode = normalizeMode(normalizedArgument);
 		return mode
@@ -346,7 +348,7 @@ function writeConfiguredMode(cwd: string, mode: CompactionMode): string {
 }
 
 function buildCompactUsageLine(): string {
-	return `/compact [set] programmatic|cached|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla`;
+	return `/compact [set] programmatic|cached|cached-agentic|cached-agentic-tooltraces|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla`;
 }
 
 function buildCompactUsageLineWithCurrent(currentMode: CompactionMode): string {
@@ -360,6 +362,8 @@ function buildHelpText(currentMode: CompactionMode): string {
 		"- no mode: compact with the configured mode; defaults to vanilla when unset",
 		"- programmatic: ordered markdown tool traces only",
 		"- cached: summary via chat turn (reuses prompt cache), no tool trace",
+		"- cached-agentic: agentic summary via chat turn (reuses prompt cache), no tool trace",
+		"- cached-agentic-tooltraces: agentic summary via chat turn plus ordered tool trace",
 		"- cached-summary-tooltraces: summary via chat turn plus ordered tool trace",
 		"- cached-handoff: handoff doc via chat turn, no tool trace",
 		"- cached-handoff-tooltraces: handoff doc via chat turn plus ordered tool trace",
@@ -372,12 +376,16 @@ function getCompactArgumentCompletions(prefix: string): AutocompleteItemLike[] |
 	const items: AutocompleteItemLike[] = [
 		{ value: "programmatic", label: "programmatic", description: "ordered markdown tool traces only" },
 		{ value: "cached", label: "cached", description: "summary via chat turn (reuses prompt cache), no tool trace" },
+		{ value: "cached-agentic", label: "cached-agentic", description: "agentic summary via chat turn (reuses prompt cache), no tool trace" },
+		{ value: "cached-agentic-tooltraces", label: "cached-agentic-tooltraces", description: "agentic summary via chat turn plus ordered tool trace" },
 		{ value: "cached-summary-tooltraces", label: "cached-summary-tooltraces", description: "summary via chat turn plus ordered tool trace" },
 		{ value: "cached-handoff", label: "cached-handoff", description: "handoff doc via chat turn, no tool trace" },
 		{ value: "cached-handoff-tooltraces", label: "cached-handoff-tooltraces", description: "handoff doc via chat turn plus ordered tool trace" },
 		{ value: "vanilla", label: "vanilla", description: "Pi default compaction" },
 		{ value: "set programmatic", label: "set programmatic", description: "save programmatic as the configured mode" },
 		{ value: "set cached", label: "set cached", description: "save cached as the configured mode" },
+		{ value: "set cached-agentic", label: "set cached-agentic", description: "save cached-agentic as the configured mode" },
+		{ value: "set cached-agentic-tooltraces", label: "set cached-agentic-tooltraces", description: "save cached-agentic-tooltraces as the configured mode" },
 		{ value: "set cached-summary-tooltraces", label: "set cached-summary-tooltraces", description: "save cached-summary-tooltraces as the configured mode" },
 		{ value: "set cached-handoff", label: "set cached-handoff", description: "save cached-handoff as the configured mode" },
 		{ value: "set cached-handoff-tooltraces", label: "set cached-handoff-tooltraces", description: "save cached-handoff-tooltraces as the configured mode" },
@@ -788,10 +796,18 @@ function formatCachedFileOperations(readFiles: string[], modifiedFiles: string[]
 // tools, same session cache key) with only the instruction message appended, so
 // the provider prompt cache is reused instead of reprocessing the conversation.
 
-type DanceMode = "cached" | "cached-handoff" | "cached-handoff-tooltraces" | "cached-summary-tooltraces";
+type DanceMode =
+	| "cached"
+	| "cached-agentic"
+	| "cached-agentic-tooltraces"
+	| "cached-handoff"
+	| "cached-handoff-tooltraces"
+	| "cached-summary-tooltraces";
 
 const DANCE_MODES: readonly DanceMode[] = [
 	"cached",
+	"cached-agentic",
+	"cached-agentic-tooltraces",
 	"cached-handoff",
 	"cached-handoff-tooltraces",
 	"cached-summary-tooltraces",
@@ -805,11 +821,17 @@ function isDanceMode(mode: CompactionMode): mode is DanceMode {
 
 const DANCE_SUMMARY_MESSAGE =
 	"Reply with ONLY a standalone structured summary of the context so far... do not use tools, do not do any work.";
+const DANCE_AGENTIC_MESSAGE =
+	"Produce only the agentic state needed to continue this coding session. Focus on goals, constraints, decisions, progress, blockers, next steps, and critical context. Do not include ordered tool-call traces; those are provided separately in the programmatic section. do not use tools, do not do any work.";
 const DANCE_HANDOFF_MESSAGE =
 	"Write a handoff doc for a new agent to continue the session. Ensure the handoff is standalone and contains all details necessary to continue where we left off. do not use tools, do not do any work.";
 
 function buildDanceMessage(mode: DanceMode, customInstructions: string | undefined): string {
-	const prompt = mode.startsWith("cached-handoff") ? DANCE_HANDOFF_MESSAGE : DANCE_SUMMARY_MESSAGE;
+	const prompt = mode.startsWith("cached-handoff")
+		? DANCE_HANDOFF_MESSAGE
+		: mode.startsWith("cached-agentic")
+			? DANCE_AGENTIC_MESSAGE
+			: DANCE_SUMMARY_MESSAGE;
 	const parts = [prompt];
 	if (customInstructions?.trim()) parts.push(customInstructions.trim());
 	return parts.join("\n\n");
