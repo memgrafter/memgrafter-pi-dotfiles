@@ -48,12 +48,18 @@ Checks per mode:
 
 - `run.sh` — create tmux session, boot pi, launch drivers
 - `drive.py <mode> <win>` — drive one session
+- `drive_special.py <scenario> <win>` — threshold, escabort, overflow, modearg, modearg-reverse
+- `run_special.sh [scenarios...]` — special paths; default `threshold escabort`
+  (overflow skipped: UX is abort + user figures it out). `modearg`/`modearg-reverse`
+  regression-test `/compact <mode>` with a configured mode that differs from the
+  requested mode (details.mode, tooltrace section, and injected prompt must all
+  follow the REQUESTED mode)
 - `verify.py <mode>` — verify one session file
 - `runs/<mode>/` — cwd, seeded `.pi/settings.json`, session files, driver logs (gitignored)
 
 ## Notes
 
 - Session files live in `runs/<mode>/sessions/`.
-- The mode is seeded per-run in `runs/<mode>/.pi/settings.json`; use plain
-  `/compact` (not `/compact <mode>`). Phase 3 of the dance resolves the mode
-  from settings, not from the `/compact` argument.
+- The mode is seeded per-run in `runs/<mode>/.pi/settings.json`; the main matrix uses
+  plain `/compact`. The `/compact <mode>` path is covered by `modearg`/`modearg-reverse`,
+  which intentionally mismatch the configured mode.

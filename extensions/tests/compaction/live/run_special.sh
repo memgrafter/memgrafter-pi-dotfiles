@@ -11,14 +11,33 @@ EXT="$REPO/extensions/pi-compaction-modes.ts"
 SESSION=comp-test
 PI_CMD="pi --provider deepseek --model deepseek-v4-flash --thinking off -a --session-dir"
 
-mkdir -p "$HARNESS/runs/threshold" "$HARNESS/runs/threshold/.pi" "$HARNESS/runs/threshold/sessions"
-mkdir -p "$HARNESS/runs/overflow" "$HARNESS/runs/overflow/.pi" "$HARNESS/runs/overflow/sessions"
-mkdir -p "$HARNESS/runs/escabort" "$HARNESS/runs/escabort/.pi" "$HARNESS/runs/escabort/sessions"
+# Kill stale drivers from previous runs targeting the same windows
+pkill -f "drive_special.py" 2>/dev/null
+pkill -f "$HARNESS/drive_special.py" 2>/dev/null
+sleep 1
 
-# threshold: reserveTokens 240000 -> compact when context > 16k tokens (auto-trigger)
-printf '{\n  "pi-compaction-modes": { "mode": "cached-handoff-tooltraces" },\n  "compaction": { "reserveTokens": 240000 }\n}\n' > "$HARNESS/runs/threshold/.pi/settings.json"
-printf '{\n  "pi-compaction-modes": { "mode": "cached" }\n}\n' > "$HARNESS/runs/overflow/.pi/settings.json"
-printf '{\n  "pi-compaction-modes": { "mode": "cached" }\n}\n' > "$HARNESS/runs/escabort/.pi/settings.json"
+# Ensure the tmux session exists (run.sh normally creates it)
+if ! tmux has-session -t $SESSION 2>/dev/null; then
+  tmux new-session -d -s $SESSION -c /tmp -n launch
+  echo "created tmux session $SESSION"
+fi
+
+seed_mode() { # seed_mode <scenario>
+  local s="$1" mode="cached"
+  case "$s" in
+    threshold) mode="cached-handoff-tooltraces" ;;
+    modearg-reverse) mode="cached-handoff-tooltraces" ;;
+  esac
+  mkdir -p "$HARNESS/runs/$s/.pi" "$HARNESS/runs/$s/sessions"
+  if [ "$s" = threshold ]; then
+    # reserveTokens 240000 -> compact when context > 16k tokens (auto-trigger)
+    printf '{\n  "pi-compaction-modes": { "mode": "%s" },\n  "compaction": { "reserveTokens": 240000 }\n}\n' "$mode" > "$HARNESS/runs/$s/.pi/settings.json"
+  else
+    printf '{\n  "pi-compaction-modes": { "mode": "%s" }\n}\n' "$mode" > "$HARNESS/runs/$s/.pi/settings.json"
+  fi
+}
+
+for s in $SCENARIOS; do seed_mode "$s"; done
 
 # filler files (33k and ~260k tokens)
 python3 - <<PY
@@ -26,7 +45,7 @@ open("$HARNESS/runs/context_filler.txt", "w").write("This is context filler text
 open("$HARNESS/runs/overflow_filler.txt", "w").write("Overflow filler context. " * 42000)
 PY
 
-for s in threshold overflow escabort; do
+for s in $SCENARIOS; do
   rm -f "$HARNESS/runs/$s/sessions"/*.jsonl "$HARNESS/runs/$s/driver.log" "$HARNESS/runs/$s/driver.out"
 done
 
@@ -49,7 +68,9 @@ for s in $SCENARIOS; do
 done
 
 # Run special tests in parallel
-nohup python3 "$HARNESS/drive_special.py" threshold 10 > "$HARNESS/runs/threshold/driver.out" 2>&1 &
-nohup python3 "$HARNESS/drive_special.py" overflow 11 > "$HARNESS/runs/overflow/driver.out" 2>&1 &
-nohup python3 "$HARNESS/drive_special.py" escabort 12 > "$HARNESS/runs/escabort/driver.out" 2>&1 &
-echo "special drivers launched (windows 10-12)"
+win=10
+for s in $SCENARIOS; do
+  nohup python3 "$HARNESS/drive_special.py" "$s" "$win" > "$HARNESS/runs/$s/driver.out" 2>&1 &
+  win=$((win+1))
+done
+echo "special drivers launched for: $SCENARIOS"

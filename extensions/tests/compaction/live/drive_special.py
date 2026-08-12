@@ -220,10 +220,80 @@ def scenario_escabort():
     log("=== ESCABORT COMPLETE ===")
 
 
+def scenario_modearg():
+    """Configured mode cached, /compact cached-handoff-tooltraces.
+    Before fix: phase 3 fell back to configured mode -> no tooltrace, details.mode=cached.
+    """
+    log("=== modearg: configured cached + /compact cached-handoff-tooltraces ===")
+    wait_boot()
+    send("Write a haiku about caching. Reply with only the haiku.")
+    wait_for(lambda es: len(assistant_msgs(es)) >= 1, 240, "haiku reply")
+    send(f"Run bash: ls -la {BASE}. Then reply with exactly DONE.")
+    wait_for(lambda es: "DONE" in last_assistant_text(es).upper(), 240, "DONE")
+    send("Read the following text and reply with exactly: FILLER_OK\n\n", enter=False)
+    paste_file("ma", FILLER)
+    time.sleep(2)
+    send_key("Enter")
+    wait_for(lambda es: "FILLER_OK" in last_assistant_text(es), 300, "FILLER_OK")
+    send("/compact cached-handoff-tooltraces")
+    log("sent /compact cached-handoff-tooltraces")
+    wait_for(lambda es: len(compaction_entries(es)) >= 1, 300, "compaction entry")
+    es = entries()
+    ce = compaction_entries(es)[-1]
+    d = ce.get("details", {})
+    log(f"details.mode={d.get('mode')!r} (expect 'cached-handoff-tooltraces')")
+    log(f"summary has Programmatic section: {'Programmatic' in ce.get('summary', '')} (expect True)")
+    handoff_injected = [
+        u for u in es
+        if u.get("type") == "message" and u.get("message", {}).get("role") == "user"
+        and msg_text(u.get("message", {})).startswith("Write a handoff doc")
+    ]
+    log(f"handoff prompt injected: {len(handoff_injected) == 1} (expect True)")
+    send("Reply with exactly: POST_COMPACT_OK")
+    wait_for(lambda es: "POST_COMPACT_OK" in last_assistant_text(es), 240, "POST_COMPACT_OK")
+    log("=== MODEARG COMPLETE ===")
+
+
+def scenario_modearg_reverse():
+    """Configured cached-handoff-tooltraces, /compact cached.
+    Before fix: phase 3 appended tooltrace + details.mode=cached-handoff-tooltraces.
+    """
+    log("=== modearg-reverse: configured cached-handoff-tooltraces + /compact cached ===")
+    wait_boot()
+    send("Write a haiku about caching. Reply with only the haiku.")
+    wait_for(lambda es: len(assistant_msgs(es)) >= 1, 240, "haiku reply")
+    send(f"Run bash: ls -la {BASE}. Then reply with exactly DONE.")
+    wait_for(lambda es: "DONE" in last_assistant_text(es).upper(), 240, "DONE")
+    send("Read the following text and reply with exactly: FILLER_OK\n\n", enter=False)
+    paste_file("mar", FILLER)
+    time.sleep(2)
+    send_key("Enter")
+    wait_for(lambda es: "FILLER_OK" in last_assistant_text(es), 300, "FILLER_OK")
+    send("/compact cached")
+    log("sent /compact cached")
+    wait_for(lambda es: len(compaction_entries(es)) >= 1, 300, "compaction entry")
+    es = entries()
+    ce = compaction_entries(es)[-1]
+    d = ce.get("details", {})
+    log(f"details.mode={d.get('mode')!r} (expect 'cached')")
+    log(f"summary has Programmatic section: {'Programmatic' in ce.get('summary', '')} (expect False)")
+    summary_injected = [
+        u for u in es
+        if u.get("type") == "message" and u.get("message", {}).get("role") == "user"
+        and msg_text(u.get("message", {})).startswith("Reply with ONLY a standalone structured summary")
+    ]
+    log(f"summary prompt injected: {len(summary_injected) == 1} (expect True)")
+    send("Reply with exactly: POST_COMPACT_OK")
+    wait_for(lambda es: "POST_COMPACT_OK" in last_assistant_text(es), 240, "POST_COMPACT_OK")
+    log("=== MODEARG-REVERSE COMPLETE ===")
+
+
 SCENARIOS = {
     "threshold": scenario_threshold,
     "overflow": scenario_overflow,
     "escabort": scenario_escabort,
+    "modearg": scenario_modearg,
+    "modearg-reverse": scenario_modearg_reverse,
 }
 
 if __name__ == "__main__":

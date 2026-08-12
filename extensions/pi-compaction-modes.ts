@@ -931,7 +931,13 @@ export default function (pi: ExtensionAPI) {
 
 		// Dance modes: the summary comes from a normal chat turn (provider prompt
 		// cache reused), not from a standalone summarization request.
-		if (isDanceMode(mode)) {
+		// Prefer the in-flight dance's mode: phase 3 (the internal ctx.compact() after
+		// the summary turn) carries no customInstructions/compactionMode, so `mode`
+		// would resolve to the configured mode. Using the dance's own mode lets a dance
+		// started via `/compact <dance-mode>` complete with the requested mode even
+		// when the configured mode differs.
+		const danceMode = danceState ? danceState.mode : isDanceMode(mode) ? mode : undefined;
+		if (danceMode) {
 			// Overflow cannot use the dance: cancelling breaks pi's compact-and-retry loop.
 			if (event.reason === "overflow") {
 				danceState = undefined;
@@ -950,7 +956,7 @@ export default function (pi: ExtensionAPI) {
 				const retention = buildRetentionPlan(event.branchEntries, event.preparation, options.retention);
 				const { readFiles, modifiedFiles } = computeCachedFileLists(event.preparation.fileOps);
 				let summaryContent = `${captured.summary}${formatCachedFileOperations(readFiles, modifiedFiles)}`;
-				if (mode.endsWith("-tooltraces")) {
+				if (danceMode.endsWith("-tooltraces")) {
 					const pathDisplayPolicy = createPathDisplayPolicy();
 					const toolTrace = buildNonAgenticCompaction({
 						messages: retention.compactedMessages,
@@ -959,13 +965,13 @@ export default function (pi: ExtensionAPI) {
 					});
 					summaryContent += `\n\n${formatComponent("Programmatic", toolTrace)}`;
 				}
-				ctx.ui.notify(`Compaction complete (mode: ${mode}).`, "info");
+				ctx.ui.notify(`Compaction complete (mode: ${danceMode}).`, "info");
 				return {
 					compaction: {
 						summary: summaryContent,
 						firstKeptEntryId: retention.firstKeptEntryId,
 						tokensBefore: event.preparation.tokensBefore,
-						details: { mode, readFiles, modifiedFiles },
+						details: { mode: danceMode, readFiles, modifiedFiles },
 					},
 				};
 			}
@@ -978,9 +984,9 @@ export default function (pi: ExtensionAPI) {
 			// Phase 1: request the summary as a plain user message, then cancel so the
 			// turn can run; compaction completes via phase 3.
 			const customInstructions = commandIntent.action === "compact" ? commandIntent.customInstructions : undefined;
-			danceState = { status: "pending", mode };
-			ctx.ui.notify(`Compaction mode '${mode}': requesting summary in chat...`, "info");
-			const injectedText = buildDanceMessage(mode, customInstructions);
+			danceState = { status: "pending", mode: danceMode };
+			ctx.ui.notify(`Compaction mode '${danceMode}': requesting summary in chat...`, "info");
+			const injectedText = buildDanceMessage(danceMode, customInstructions);
 			setTimeout(() => {
 				if (danceState?.status !== "pending") return;
 				void (async () => {
