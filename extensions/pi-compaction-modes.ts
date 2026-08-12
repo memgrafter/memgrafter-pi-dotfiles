@@ -4,16 +4,12 @@ import path from "node:path";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
-import { generateSummary } from "@earendil-works/pi-coding-agent";
 
 const KEEP_NO_PRE_COMPACTION_MESSAGES_ID = "__pi_compaction_modes_keep_none__";
 const SETTINGS_SECTION = "pi-compaction-modes";
 const COMPACTION_MODES = [
 	"programmatic",
-	"agentic",
-	"full",
 	"cached",
-	"cached-programmatic",
 	"cached-handoff",
 	"cached-handoff-tooltraces",
 	"cached-summary-tooltraces",
@@ -28,10 +24,6 @@ const DEFAULT_COMPACTION_OPTIONS = {
 		mode: "none" as RetentionMode,
 		keepRecentMessages: 0,
 		missingFirstKeptEntryId: KEEP_NO_PRE_COMPACTION_MESSAGES_ID,
-	},
-	agentic: {
-		enabled: true,
-		useModelSummary: true,
 	},
 	nonAgentic: {
 		enabled: true,
@@ -97,15 +89,6 @@ type RetentionPlan = {
 	compactedEntryCount: number;
 	keptEntryCount: number;
 	reliesOnMissingFirstKeptEntryId: boolean;
-};
-
-type AgenticCompactionInput = {
-	messages: AgentMessage[];
-	ctx: ExtensionContext;
-	customInstructions?: string;
-	signal: AbortSignal;
-	reserveTokens: number;
-	pathDisplayPolicy: PathDisplayPolicy;
 };
 
 type NonAgenticCompactionInput = {
@@ -301,7 +284,7 @@ function parseCommandIntent(customInstructions: string | undefined): CommandInte
 
 	if (normalizedCommand === "set") {
 		if (!normalizedArgument || extra.length > 0) {
-			return { action: "invalid", message: "Usage: /compact [set] programmatic|agentic|full|cached|cached-programmatic|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla" };
+			return { action: "invalid", message: "Usage: /compact [set] programmatic|cached|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla" };
 		}
 		const mode = normalizeMode(normalizedArgument);
 		return mode
@@ -363,7 +346,7 @@ function writeConfiguredMode(cwd: string, mode: CompactionMode): string {
 }
 
 function buildCompactUsageLine(): string {
-	return `/compact [set] programmatic|agentic|full|cached|cached-programmatic|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla`;
+	return `/compact [set] programmatic|cached|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla`;
 }
 
 function buildCompactUsageLineWithCurrent(currentMode: CompactionMode): string {
@@ -376,13 +359,10 @@ function buildHelpText(currentMode: CompactionMode): string {
 		`Usage: ${buildCompactUsageLineWithCurrent(currentMode)}`,
 		"- no mode: compact with the configured mode; defaults to vanilla when unset",
 		"- programmatic: ordered markdown tool traces only",
-		"- agentic: agentic summary only",
-		"- full: agentic summary plus programmatic trace",
 		"- cached: summary via chat turn (reuses prompt cache), no tool trace",
 		"- cached-summary-tooltraces: summary via chat turn plus ordered tool trace",
 		"- cached-handoff: handoff doc via chat turn, no tool trace",
 		"- cached-handoff-tooltraces: handoff doc via chat turn plus ordered tool trace",
-		"- cached-programmatic: Pi default compaction via extension (same summary, no built-in compaction)",
 		"- vanilla: Pi default compaction",
 		"- set <mode>: save the configured mode in settings.json",
 	].join("\n");
@@ -391,22 +371,16 @@ function buildHelpText(currentMode: CompactionMode): string {
 function getCompactArgumentCompletions(prefix: string): AutocompleteItemLike[] | null {
 	const items: AutocompleteItemLike[] = [
 		{ value: "programmatic", label: "programmatic", description: "ordered markdown tool traces only" },
-		{ value: "agentic", label: "agentic", description: "agentic summary only" },
-		{ value: "full", label: "full", description: "agentic summary plus programmatic trace" },
 		{ value: "cached", label: "cached", description: "summary via chat turn (reuses prompt cache), no tool trace" },
 		{ value: "cached-summary-tooltraces", label: "cached-summary-tooltraces", description: "summary via chat turn plus ordered tool trace" },
 		{ value: "cached-handoff", label: "cached-handoff", description: "handoff doc via chat turn, no tool trace" },
 		{ value: "cached-handoff-tooltraces", label: "cached-handoff-tooltraces", description: "handoff doc via chat turn plus ordered tool trace" },
-		{ value: "cached-programmatic", label: "cached-programmatic", description: "Pi default compaction via extension (same summary, no built-in compaction)" },
 		{ value: "vanilla", label: "vanilla", description: "Pi default compaction" },
 		{ value: "set programmatic", label: "set programmatic", description: "save programmatic as the configured mode" },
-		{ value: "set agentic", label: "set agentic", description: "save agentic as the configured mode" },
-		{ value: "set full", label: "set full", description: "save full as the configured mode" },
 		{ value: "set cached", label: "set cached", description: "save cached as the configured mode" },
 		{ value: "set cached-summary-tooltraces", label: "set cached-summary-tooltraces", description: "save cached-summary-tooltraces as the configured mode" },
 		{ value: "set cached-handoff", label: "set cached-handoff", description: "save cached-handoff as the configured mode" },
 		{ value: "set cached-handoff-tooltraces", label: "set cached-handoff-tooltraces", description: "save cached-handoff-tooltraces as the configured mode" },
-		{ value: "set cached-programmatic", label: "set cached-programmatic", description: "save cached-programmatic as the configured mode" },
 		{ value: "set vanilla", label: "set vanilla", description: "save vanilla as the configured mode" },
 		{ value: "help", label: "help", description: "show compaction mode help" },
 	];
@@ -546,10 +520,6 @@ function formatPathsInTextForSummary(value: string, policy: PathDisplayPolicy): 
 	const slashNormalized = value.replace(/\\/g, "/");
 	const cwdFormatted = replaceAbsolutePathPrefix(slashNormalized, policy.workingDirectory, "", ".");
 	return replaceAbsolutePathPrefix(cwdFormatted, policy.homeDirectory, "~/", "~");
-}
-
-function describePathDisplayPolicy(policy: PathDisplayPolicy): string {
-	return `Display files under the current working directory as relative paths (${formatPathForSummary(policy.workingDirectory, policy)}), files elsewhere under the home directory as ~/..., and files outside the home directory as absolute paths.`;
 }
 
 function getArgumentObject(toolCall: ExtractedToolCall): Record<string, unknown> {
@@ -749,56 +719,6 @@ function buildRetentionCompaction(retentionPlan: RetentionPlan): CompactionCompo
 			reliesOnMissingFirstKeptEntryId: retentionPlan.reliesOnMissingFirstKeptEntryId,
 		},
 	};
-}
-
-async function generateAgenticSummary(input: AgenticCompactionInput): Promise<string> {
-	if (input.messages.length === 0) return "- No compacted messages were available for agentic summarization.";
-	if (!input.ctx.model) return "- Agentic model summary unavailable: no current model.";
-
-	const auth = await input.ctx.modelRegistry.getApiKeyAndHeaders(input.ctx.model);
-	if (!auth.ok || !auth.apiKey) return "- Agentic model summary unavailable: no API key for current model.";
-
-	return generateSummary(
-		input.messages,
-		input.ctx.model,
-		input.reserveTokens,
-		auth.apiKey,
-		auth.headers,
-		input.signal,
-		[
-			"Produce only the agentic state needed to continue this coding session.",
-			"Focus on goals, constraints, decisions, progress, blockers, next steps, and critical context.",
-			describePathDisplayPolicy(input.pathDisplayPolicy),
-			"Do not include ordered tool-call traces; those are provided separately in the programmatic section.",
-			input.customInstructions,
-		]
-			.filter(Boolean)
-			.join("\n"),
-		undefined,
-	);
-}
-
-async function buildAgenticCompaction(input: AgenticCompactionInput): Promise<CompactionComponent> {
-	try {
-		const summary = await generateAgenticSummary(input);
-		return {
-			sections: [{ title: "Model Summary", body: summary }],
-			details: {
-				method: "generateSummary",
-				messageCount: input.messages.length,
-			},
-		};
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		return {
-			sections: [{ title: "Model Summary", body: `- Agentic model summary failed: ${message}` }],
-			details: {
-				method: "generateSummary",
-				messageCount: input.messages.length,
-				error: message,
-			},
-		};
-	}
 }
 
 function formatToolTraceLine(toolCall: ToolTraceLine): string {
@@ -1053,92 +973,21 @@ export default function (pi: ExtensionAPI) {
 			return { cancel: true };
 		}
 
-		// cached-programmatic: Pi's default summary (uncached) plus ordered tool trace
-		if (mode === "cached-programmatic") {
-			const { firstKeptEntryId, tokensBefore, previousSummary, fileOps, settings } = event.preparation;
-			if (!ctx.model) {
-				ctx.ui.notify("Cached compaction unavailable: no current model.", "warning");
-				return { cancel: true };
-			}
-
-			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(ctx.model);
-			if (!auth.ok || !auth.apiKey) {
-				ctx.ui.notify("Cached compaction unavailable: no API key for current model.", "warning");
-				return { cancel: true };
-			}
-
-			const options = DEFAULT_COMPACTION_OPTIONS;
-			const retention = buildRetentionPlan(event.branchEntries, event.preparation, options.retention);
-
-			const baseSummary = await generateSummary(
-				retention.compactedMessages,
-				ctx.model,
-				settings.reserveTokens,
-				auth.apiKey,
-				auth.headers,
-				event.signal,
-				commandIntent.customInstructions,
-				previousSummary,
-			);
-
-			// Append file operations (same as Pi's built-in compaction)
-			const { readFiles, modifiedFiles } = computeCachedFileLists(fileOps);
-			let summaryContent = baseSummary + formatCachedFileOperations(readFiles, modifiedFiles);
-
-			// Add programmatic tool trace for cached-programmatic mode
-			if (mode === "cached-programmatic") {
-				const pathDisplayPolicy = createPathDisplayPolicy();
-				const toolTrace = buildNonAgenticCompaction({
-					messages: retention.compactedMessages,
-					options: options.nonAgentic,
-					pathDisplayPolicy,
-				});
-				summaryContent += "\n\n" + formatComponent("Programmatic", toolTrace);
-			}
-
-			ctx.ui.notify(`Cached compaction captured context (mode: ${mode}).`, "info");
-
-			return {
-				compaction: {
-					summary: summaryContent,
-					firstKeptEntryId,
-					tokensBefore,
-					details: { mode, readFiles, modifiedFiles },
-				},
-			};
-		}
-
 		if (mode === "vanilla") return;
 
 		const options = DEFAULT_COMPACTION_OPTIONS;
-		const { firstKeptEntryId: _ignoredFirstKeptEntryId, tokensBefore, settings } = event.preparation;
-		void _ignoredFirstKeptEntryId;
+		const { tokensBefore } = event.preparation;
 
 		const pathDisplayPolicy = createPathDisplayPolicy();
 		const retention = buildRetentionPlan(event.branchEntries, event.preparation, options.retention);
 		const retentionComponent = buildRetentionCompaction(retention);
-		const includeAgentic = mode === "agentic" || mode === "full";
-		const includeNonAgentic = mode === "programmatic" || mode === "full";
-		const agentic = includeAgentic
-			? await buildAgenticCompaction({
-					messages: retention.compactedMessages,
-					ctx,
-					customInstructions: commandIntent.customInstructions,
-					signal: event.signal,
-					reserveTokens: settings.reserveTokens,
-					pathDisplayPolicy,
-				})
-			: undefined;
-		const nonAgentic = includeNonAgentic
-			? buildNonAgenticCompaction({
-					messages: retention.compactedMessages,
-					options: options.nonAgentic,
-					pathDisplayPolicy,
-				})
-			: undefined;
+		const nonAgentic = buildNonAgenticCompaction({
+			messages: retention.compactedMessages,
+			options: options.nonAgentic,
+			pathDisplayPolicy,
+		});
 		const summary = formatHybridSummary([
 			["Retention", retentionComponent],
-			["Agentic", agentic],
 			["Programmatic", nonAgentic],
 		]);
 
@@ -1153,8 +1002,7 @@ export default function (pi: ExtensionAPI) {
 					mode,
 					configuredMode,
 					retention: retentionComponent.details,
-					agentic: agentic?.details,
-					programmatic: nonAgentic?.details,
+					programmatic: nonAgentic.details,
 					options,
 				},
 			},
