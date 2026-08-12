@@ -60,3 +60,15 @@ Regression tests PASS live on deepseek/deepseek-v4-flash (extensions/tests/compa
 Typecheck: `bunx tsc --noEmit --skipLibCheck --module esnext --moduleResolution bundler --target es2022 --lib es2022 extensions/pi-compaction-modes.ts` — pass.
 
 Still open: finding 1 — flaky `cached` summary prompt on deepseek-v4-flash (degenerate 1-token echo captured verbatim; no quality guard on the captured summary).
+
+**2026-08-12T23:03:44Z**
+
+FINDING 1 FIXED in b1d3f3f (verified live):
+- The dance block now computes danceMode = in-flight dance's mode (danceState.mode) when a dance exists, else the resolved mode. Phase 3 uses danceMode for the -tooltraces append, details.mode, and the notify, so /compact <dance-mode> is honored even when the configured mode differs.
+- Regression tests added: modearg (configured cached + /compact cached-handoff-tooltraces -> tooltrace + details.mode=cached-handoff-tooltraces) and modearg-reverse (configured cached-handoff-tooltraces + /compact cached -> no tooltrace + details.mode=cached), both PASS.
+- Full 8-mode matrix re-verified ALL PASS after the change (no regression).
+- Ticket mpd-b8nt tracks making keepRecentTokens configurable (the "session too small" guard).
+
+**2026-08-12T23:25Z — flaky cached summary prompt addressed**
+
+DANCE_SUMMARY_MESSAGE rewritten to mirror pi's default SUMMARIZATION_PROMPT (core/compaction/compaction.ts): named sections (Goal, Constraints & Preferences, Progress, Key Decisions, Next Steps, Critical Context), EXACT-format contract, "(none)" fallbacks, plus the shared "do not use tools, do not do any work" tail. The old prompt ("Reply with ONLY a standalone structured summary...") had no content contract, which let deepseek-v4-flash return a 1-token echo (2/4 runs). Prompt body is byte-identical to pi's 879-char SUMMARIZATION_PROMPT before the appended tail. Test prefix checks updated in extensions/tests/compaction/live/ (drive_special.py, verify.py) and ~/pi-compact-test/. `bunx tsc` typecheck passes. Live re-test of cached / cached-summary-tooltraces pending (no scripted pi-agent runs per user).
