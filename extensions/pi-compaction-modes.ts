@@ -8,7 +8,17 @@ import { generateSummary } from "@earendil-works/pi-coding-agent";
 
 const KEEP_NO_PRE_COMPACTION_MESSAGES_ID = "__pi_compaction_modes_keep_none__";
 const SETTINGS_SECTION = "pi-compaction-modes";
-const COMPACTION_MODES = ["programmatic", "agentic", "full", "cached", "cached-programmatic", "vanilla"] as const;
+const COMPACTION_MODES = [
+	"programmatic",
+	"agentic",
+	"full",
+	"cached",
+	"cached-programmatic",
+	"cached-handoff",
+	"cached-handoff-tooltraces",
+	"cached-summary-tooltraces",
+	"vanilla",
+] as const;
 const DEFAULT_COMPACTION_MODE: CompactionMode = "vanilla";
 
 type CompactionMode = (typeof COMPACTION_MODES)[number];
@@ -291,7 +301,7 @@ function parseCommandIntent(customInstructions: string | undefined): CommandInte
 
 	if (normalizedCommand === "set") {
 		if (!normalizedArgument || extra.length > 0) {
-			return { action: "invalid", message: "Usage: /compact [set] programmatic|agentic|full|cached|cached-programmatic|vanilla" };
+			return { action: "invalid", message: "Usage: /compact [set] programmatic|agentic|full|cached|cached-programmatic|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla" };
 		}
 		const mode = normalizeMode(normalizedArgument);
 		return mode
@@ -353,7 +363,7 @@ function writeConfiguredMode(cwd: string, mode: CompactionMode): string {
 }
 
 function buildCompactUsageLine(): string {
-	return `/compact [set] programmatic|agentic|full|cached|cached-programmatic|vanilla`;
+	return `/compact [set] programmatic|agentic|full|cached|cached-programmatic|cached-handoff|cached-handoff-tooltraces|cached-summary-tooltraces|vanilla`;
 }
 
 function buildCompactUsageLineWithCurrent(currentMode: CompactionMode): string {
@@ -368,8 +378,11 @@ function buildHelpText(currentMode: CompactionMode): string {
 		"- programmatic: ordered markdown tool traces only",
 		"- agentic: agentic summary only",
 		"- full: agentic summary plus programmatic trace",
-		"- cached: Pi default compaction via extension (same summary, no built-in compaction)",
-		"- cached-programmatic: cached summary plus ordered tool trace",
+		"- cached: summary via chat turn (reuses prompt cache), no tool trace",
+		"- cached-summary-tooltraces: summary via chat turn plus ordered tool trace",
+		"- cached-handoff: handoff doc via chat turn, no tool trace",
+		"- cached-handoff-tooltraces: handoff doc via chat turn plus ordered tool trace",
+		"- cached-programmatic: Pi default compaction via extension (same summary, no built-in compaction)",
 		"- vanilla: Pi default compaction",
 		"- set <mode>: save the configured mode in settings.json",
 	].join("\n");
@@ -380,13 +393,19 @@ function getCompactArgumentCompletions(prefix: string): AutocompleteItemLike[] |
 		{ value: "programmatic", label: "programmatic", description: "ordered markdown tool traces only" },
 		{ value: "agentic", label: "agentic", description: "agentic summary only" },
 		{ value: "full", label: "full", description: "agentic summary plus programmatic trace" },
-		{ value: "cached", label: "cached", description: "Pi default compaction via extension (same summary, no built-in compaction)" },
-		{ value: "cached-programmatic", label: "cached-programmatic", description: "cached summary plus ordered tool trace" },
+		{ value: "cached", label: "cached", description: "summary via chat turn (reuses prompt cache), no tool trace" },
+		{ value: "cached-summary-tooltraces", label: "cached-summary-tooltraces", description: "summary via chat turn plus ordered tool trace" },
+		{ value: "cached-handoff", label: "cached-handoff", description: "handoff doc via chat turn, no tool trace" },
+		{ value: "cached-handoff-tooltraces", label: "cached-handoff-tooltraces", description: "handoff doc via chat turn plus ordered tool trace" },
+		{ value: "cached-programmatic", label: "cached-programmatic", description: "Pi default compaction via extension (same summary, no built-in compaction)" },
 		{ value: "vanilla", label: "vanilla", description: "Pi default compaction" },
 		{ value: "set programmatic", label: "set programmatic", description: "save programmatic as the configured mode" },
 		{ value: "set agentic", label: "set agentic", description: "save agentic as the configured mode" },
 		{ value: "set full", label: "set full", description: "save full as the configured mode" },
 		{ value: "set cached", label: "set cached", description: "save cached as the configured mode" },
+		{ value: "set cached-summary-tooltraces", label: "set cached-summary-tooltraces", description: "save cached-summary-tooltraces as the configured mode" },
+		{ value: "set cached-handoff", label: "set cached-handoff", description: "save cached-handoff as the configured mode" },
+		{ value: "set cached-handoff-tooltraces", label: "set cached-handoff-tooltraces", description: "save cached-handoff-tooltraces as the configured mode" },
 		{ value: "set cached-programmatic", label: "set cached-programmatic", description: "save cached-programmatic as the configured mode" },
 		{ value: "set vanilla", label: "set vanilla", description: "save vanilla as the configured mode" },
 		{ value: "help", label: "help", description: "show compaction mode help" },
@@ -841,8 +860,96 @@ function formatCachedFileOperations(readFiles: string[], modifiedFiles: string[]
 	return `\n\n${sections.join("\n\n")}`;
 }
 
+// ============================================================================
+// Dance modes - compaction summary via a normal chat turn
+// ============================================================================
+// The summary is produced by an ordinary agent turn: the request is a byte-exact
+// superset of the last main request (same system prompt, same messages, same
+// tools, same session cache key) with only the instruction message appended, so
+// the provider prompt cache is reused instead of reprocessing the conversation.
+
+type DanceMode = "cached" | "cached-handoff" | "cached-handoff-tooltraces" | "cached-summary-tooltraces";
+
+const DANCE_MODES: readonly DanceMode[] = [
+	"cached",
+	"cached-handoff",
+	"cached-handoff-tooltraces",
+	"cached-summary-tooltraces",
+];
+
+const DANCE_MODE_SET = new Set<string>(DANCE_MODES);
+
+function isDanceMode(mode: CompactionMode): mode is DanceMode {
+	return DANCE_MODE_SET.has(mode);
+}
+
+const DANCE_SUMMARY_MESSAGE =
+	"Reply with ONLY a standalone structured summary of the context so far... do not use tools, do not do any work.";
+const DANCE_HANDOFF_MESSAGE =
+	"Write a handoff doc for a new agent to continue the session. Ensure the handoff is standalone and contains all details necessary to continue where we left off. do not use tools, do not do any work.";
+
+function buildDanceMessage(mode: DanceMode, customInstructions: string | undefined): string {
+	const prompt = mode.startsWith("cached-handoff") ? DANCE_HANDOFF_MESSAGE : DANCE_SUMMARY_MESSAGE;
+	const parts = [prompt];
+	if (customInstructions?.trim()) parts.push(customInstructions.trim());
+	return parts.join("\n\n");
+}
+
+function extractAssistantText(message: AgentMessage): string {
+	if (message.role !== "assistant") return "";
+	const content = (message as { content?: unknown }).content;
+	if (typeof content === "string") return content;
+	if (!Array.isArray(content)) return "";
+	return content
+		.filter((block): block is { type: "text"; text: string } => {
+			return Boolean(
+				block &&
+					typeof block === "object" &&
+					(block as { type?: unknown }).type === "text" &&
+					typeof (block as { text?: unknown }).text === "string",
+			);
+		})
+		.map((block) => (block as { text: string }).text)
+		.join("");
+}
+
+type DanceState =
+	| { status: "pending"; mode: DanceMode }
+	| { status: "captured"; mode: DanceMode; summary: string };
+
+let danceState: DanceState | undefined;
+
 export default function (pi: ExtensionAPI) {
+	pi.on("message_end", (event) => {
+		if (!danceState || danceState.status !== "pending") return;
+		const text = extractAssistantText(event.message);
+		if (!text) return;
+		danceState = { status: "captured", mode: danceState.mode, summary: text };
+	});
+
+	pi.on("turn_end", (_event, ctx) => {
+		if (!danceState) return;
+		// A user abort ends the summary turn; do not auto-retry or compact.
+		if (_event.message.role === "assistant" && (_event.message as { stopReason?: string }).stopReason === "aborted") {
+			ctx.ui.notify("Compaction summary cancelled. No compaction performed.", "info");
+			danceState = undefined;
+			return;
+		}
+		if (danceState.status === "captured") {
+			setTimeout(() => {
+				if (danceState?.status !== "captured") return;
+				danceState = undefined;
+				ctx.compact();
+			}, 0);
+			return;
+		}
+		// The summary turn ended without a usable reply; fail without retrying.
+		ctx.ui.notify("Compaction summary failed. No compaction performed. Try /compact again or use another mode.", "warning");
+		danceState = undefined;
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
+		danceState = undefined;
 		if (!ctx.hasUI) return;
 
 		ctx.ui.addAutocompleteProvider((current) => createCompactAutocompleteProvider(current as AutocompleteProviderLike, ctx.cwd) as typeof current);
@@ -879,8 +986,74 @@ export default function (pi: ExtensionAPI) {
 		const requestedMode = normalizeMode((event as SessionBeforeCompactEvent & { compactionMode?: unknown }).compactionMode);
 		const mode = requestedMode ?? commandIntent.mode ?? configuredMode;
 
-		// Cached: generate same summary as Pi's built-in compaction, truncate via firstKeptEntryId
-		if (mode === "cached" || mode === "cached-programmatic") {
+		// Dance modes: the summary comes from a normal chat turn (provider prompt
+		// cache reused), not from a standalone summarization request.
+		if (isDanceMode(mode)) {
+			// Overflow cannot use the dance: cancelling breaks pi's compact-and-retry loop.
+			if (event.reason === "overflow") {
+				danceState = undefined;
+				ctx.ui.notify(
+					"Context overflow: compaction cancelled. Rewind the tree to before the overflow, compact there, then have the compacted session analyze the end of the old session.",
+					"warning",
+				);
+				return { cancel: true };
+			}
+
+			// Phase 3: the model replied with the summary; use it as the compaction content.
+			if (danceState?.status === "captured") {
+				const captured = danceState;
+				danceState = undefined;
+				const options = DEFAULT_COMPACTION_OPTIONS;
+				const retention = buildRetentionPlan(event.branchEntries, event.preparation, options.retention);
+				const { readFiles, modifiedFiles } = computeCachedFileLists(event.preparation.fileOps);
+				let summaryContent = `${captured.summary}${formatCachedFileOperations(readFiles, modifiedFiles)}`;
+				if (mode.endsWith("-tooltraces")) {
+					const pathDisplayPolicy = createPathDisplayPolicy();
+					const toolTrace = buildNonAgenticCompaction({
+						messages: retention.compactedMessages,
+						options: options.nonAgentic,
+						pathDisplayPolicy,
+					});
+					summaryContent += `\n\n${formatComponent("Programmatic", toolTrace)}`;
+				}
+				ctx.ui.notify(`Compaction complete (mode: ${mode}).`, "info");
+				return {
+					compaction: {
+						summary: summaryContent,
+						firstKeptEntryId: retention.firstKeptEntryId,
+						tokensBefore: event.preparation.tokensBefore,
+						details: { mode, readFiles, modifiedFiles },
+					},
+				};
+			}
+
+			// A summary turn is already in flight; do not request another one.
+			if (danceState?.status === "pending") {
+				return { cancel: true };
+			}
+
+			// Phase 1: request the summary as a plain user message, then cancel so the
+			// turn can run; compaction completes via phase 3.
+			const customInstructions = commandIntent.action === "compact" ? commandIntent.customInstructions : undefined;
+			danceState = { status: "pending", mode };
+			ctx.ui.notify(`Compaction mode '${mode}': requesting summary in chat...`, "info");
+			const injectedText = buildDanceMessage(mode, customInstructions);
+			setTimeout(() => {
+				if (danceState?.status !== "pending") return;
+				void (async () => {
+					try {
+						await pi.sendUserMessage(injectedText);
+					} catch {
+						ctx.ui.notify("Could not request the compaction summary. No compaction performed.", "warning");
+						danceState = undefined;
+					}
+				})();
+			}, 0);
+			return { cancel: true };
+		}
+
+		// cached-programmatic: Pi's default summary (uncached) plus ordered tool trace
+		if (mode === "cached-programmatic") {
 			const { firstKeptEntryId, tokensBefore, previousSummary, fileOps, settings } = event.preparation;
 			if (!ctx.model) {
 				ctx.ui.notify("Cached compaction unavailable: no current model.", "warning");

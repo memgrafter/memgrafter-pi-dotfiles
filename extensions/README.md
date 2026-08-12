@@ -12,7 +12,7 @@ Current extensions:
 - `pi-cbt-mode.ts` → toggle Cognitive Behavioral Therapy mode via `/cbt`
 - `flexible-role-agent.ts` → stable context-builder system prompt + post-history roles via `--frag` / `/frag set <role>` (role swaps never bust cache; mode swaps warn: Continue | Fork | Cancel)
 - `pi-redraw-screen.ts` → `/redraw` command and optional keyboard shortcut to redraw the screen
-- `pi-compaction-modes.ts` → compaction modes (`programmatic`, `agentic`, `full`, `vanilla`) with settings-backed selection, agentic summaries, ordered markdown tool traces, and cwd/home-relative path display
+- `pi-compaction-modes.ts` → compaction modes (`programmatic`, `agentic`, `full`, `cached`, `cached-programmatic`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, `vanilla`) with settings-backed selection, agentic summaries, ordered markdown tool traces, cwd/home-relative path display, and cache-friendly "dance" modes that produce the summary via a normal chat turn
 - `timestamp-toolcalls.ts` → append local timestamp to every user message so the agent knows current time (format: `YYYY-MM-DDTHH:MM:SS`)
 - `tps.ts` → show tokens-per-second and token usage summary after each agent run, vendored from pi-mono
 
@@ -26,7 +26,7 @@ Compaction mode setting:
 }
 ```
 
-Use `/compact set <mode>` to save one of `programmatic`, `agentic`, `full`, or `vanilla`.
+Use `/compact set <mode>` to save one of `programmatic`, `agentic`, `full`, `cached`, `cached-programmatic`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, or `vanilla`.
 
 Patterns:
 
