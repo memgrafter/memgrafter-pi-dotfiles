@@ -56,6 +56,7 @@ Checks per mode:
   follow the REQUESTED mode)
 - `verify.py <mode>` — verify one session file
 - `runs/<mode>/` — cwd, seeded `.pi/settings.json`, session files, driver logs (gitignored)
+- `results-<date>-<topic>.md` — committed run summaries (what was tested, verifier outcome, key metrics, full compaction summaries; raw sessions stay in `runs/`)
 
 ## Notes
 
