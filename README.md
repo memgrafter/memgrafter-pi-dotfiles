@@ -23,10 +23,7 @@ pi install -l /home/archimedes/code/memgrafter-pi-dotfiles
 
 - `pi-codex-rotator.ts` — quota-aware `openai-codex` account rotation using `~/.pi/agent/pi-codex-rotator/`
 - `pi-bash-20kb.ts` — fails broad shell output so commands stay focused
-- `pi-dp-mode.ts` — deliberate-practice coach mode (`/dp`)
-- `pi-socratic-tutor-mode.ts` — Socratic tutor mode (`/socratic-tutor`)
-- `pi-pkm-mode.ts` — PKM mode (`/pkm`)
-- `pi-cbt-mode.ts` — CBT mode (`/cbt`)
+- `flexible-role-agent.ts` — stable context-builder system prompt + post-history roles via `--frag` / `/frag set <role>` (`coding-agent`, `analyst`, `pkm`, `cbt`, `dp`, `socratic-tutor`); role swaps never bust cache. Launch flags: `--frag`, `--coding`, `--pkm`, `--cbt`, `--dp`, `--socratic-tutor`. The former `pi-dp-mode.ts`, `pi-socratic-tutor-mode.ts`, `pi-pkm-mode.ts`, and `pi-cbt-mode.ts` are now roles and archived under `extensions/archived/`.
 - `pi-redraw-screen.ts` — redraw command (`/redraw`)
 - `pi-compaction-modes.ts` — compaction modes (`programmatic`, `agentic`, `full`, `vanilla`) with settings-backed selection, agentic summaries, ordered markdown tool traces, and cwd/home-relative path display
 - `timestamp-toolcalls.ts` — append local timestamp to every user message so the agent knows current time (`YYYY-MM-DDTHH:MM:SS`)

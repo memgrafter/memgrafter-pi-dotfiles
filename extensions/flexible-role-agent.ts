@@ -23,6 +23,11 @@
  * Usage:
  *   pi -e ./extensions/flexible-role-agent.ts
  *   --frag                 start with frag mode enabled (default role)
+ *   --coding               start in the coding-agent role
+ *   --pkm                  start in the pkm role
+ *   --cbt                  start in the cbt role
+ *   --dp                   start in the dp role
+ *   --socratic-tutor       start in the socratic-tutor role
  *   /frag                  show current mode, role, and trim state
  *   /frag on | off         enable/disable frag mode (warns if the system prompt
  *                          will change: Continue | Fork | Cancel) and persists
@@ -65,6 +70,42 @@ const CODING_AGENT_ROLE = `You are an expert coding assistant inside a coding ha
 /** Analyst/researcher role for agentic computer use. Adjust as needed. */
 const ANALYST_ROLE = `You are an expert analyst and researcher. You help users by investigating questions, gathering evidence, and reporting findings. You may use tools to read files, search code and data, and run commands to collect evidence. Be concise, cite what you find, and separate observation from interpretation.`;
 
+/** Personal Knowledge Management role. */
+const PKM_ROLE = `You are an expert personal knowledge manager.
+Your goal is to help me organize my thoughts, ideas, and knowledge into a structured set of files.
+You will be creating and editing markdown files.
+When I share ideas with you, you should help me clarify them and then save them to the appropriate files.
+You can ask me questions to better understand where to save the information or how to structure it.
+Focus on creating a well-organized and easy-to-navigate knowledge base.
+Do not write code unless I explicitly ask you to.`;
+
+/** Cognitive Behavioral Therapy role. */
+const CBT_ROLE = `You are an expert in Cognitive Behavioral Therapy (CBT).
+Your goal is to help me with my mental well-being by using CBT techniques.
+You will help me create and edit markdown files for journals, thought records, goals, and plans.
+When I share my thoughts and feelings, you should guide me through CBT exercises, help me identify cognitive distortions, and reframe my thoughts.
+You can ask me questions to help me reflect and gain insights.
+Focus on creating a supportive and structured environment for my CBT practice.
+Do not write code unless I explicitly ask you to.`;
+
+/** Deliberate practice coach role. */
+const DP_ROLE = `You are an expert deliberate practice coach.
+Your goal is to help me improve skills through focused, high-quality deliberate practice.
+You will help me define target skills, break them into sub-skills, and design short practice drills.
+When I share goals or performance issues, you should identify bottlenecks, propose feedback loops, and calibrate challenge level.
+You can ask me questions to clarify constraints, evaluate outcomes, and adapt the next practice block.
+Focus on specificity, repetition with feedback, and measurable progress over time.
+Do not write code unless I explicitly ask you to.`;
+
+/** Socratic tutor role. */
+const SOCRATIC_TUTOR_ROLE = `You are an expert Socratic tutor.
+Your goal is to help me learn by guiding me through questions and reflection.
+You will ask targeted, incremental questions that help me discover answers myself.
+When I share confusion, you should identify assumptions, probe understanding, and adapt question difficulty.
+You can offer brief hints, but prioritize question-led learning over direct answers unless I explicitly ask for one.
+Focus on building understanding, reasoning, and metacognition through dialogue.
+Do not write code unless I explicitly ask you to.`;
+
 const DEFAULT_ROLE_ID = "coding-agent";
 
 interface RoleDefinition {
@@ -87,6 +128,30 @@ const ROLES: RoleDefinition[] = [
 		description: "Analyst/researcher for agentic computer use",
 		prompt: ANALYST_ROLE,
 	},
+	{
+		id: "pkm",
+		label: "pkm",
+		description: "Personal Knowledge Management",
+		prompt: PKM_ROLE,
+	},
+	{
+		id: "cbt",
+		label: "cbt",
+		description: "Cognitive Behavioral Therapy coach",
+		prompt: CBT_ROLE,
+	},
+	{
+		id: "dp",
+		label: "dp",
+		description: "Deliberate practice coach",
+		prompt: DP_ROLE,
+	},
+	{
+		id: "socratic-tutor",
+		label: "socratic-tutor",
+		description: "Socratic tutor",
+		prompt: SOCRATIC_TUTOR_ROLE,
+	},
 ];
 
 function getRole(id: string): RoleDefinition | undefined {
@@ -96,6 +161,25 @@ function getRole(id: string): RoleDefinition | undefined {
 
 function roleLabel(id: string): string {
 	return getRole(id)?.label ?? id;
+}
+
+/** Launch flags that start frag mode with a specific role. */
+const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
+	{ flag: "coding", roleId: "coding-agent" },
+	{ flag: "pkm", roleId: "pkm" },
+	{ flag: "cbt", roleId: "cbt" },
+	{ flag: "dp", roleId: "dp" },
+	{ flag: "socratic-tutor", roleId: "socratic-tutor" },
+];
+
+/** First role launch flag that is set, if any. */
+function resolveLaunchRole(pi: ExtensionAPI): string | undefined {
+	for (const { flag, roleId } of ROLE_LAUNCH_FLAGS) {
+		if (pi.getFlag(flag) === true) {
+			return roleId;
+		}
+	}
+	return undefined;
 }
 
 // ============================================================================
@@ -360,11 +444,12 @@ type AutocompleteProviderLike = {
 };
 
 function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | null {
+	const roleItems: AutocompleteItemLike[] = ROLES.flatMap((role) => [
+		{ value: role.id, label: role.id, description: role.description },
+		{ value: `set ${role.id}`, label: `set ${role.id}`, description: `Switch role to ${role.label}` },
+	]);
 	const items: AutocompleteItemLike[] = [
-		{ value: "coding-agent", label: "coding-agent", description: "Default: expert coding assistant" },
-		{ value: "analyst", label: "analyst", description: "Analyst/researcher for agentic computer use" },
-		{ value: "set coding-agent", label: "set coding-agent", description: "Switch role to coding-agent" },
-		{ value: "set analyst", label: "set analyst", description: "Switch role to analyst" },
+		...roleItems,
 		{ value: "on", label: "on", description: "Enable frag mode" },
 		{ value: "off", label: "off", description: "Disable frag mode" },
 		{ value: "trim", label: "trim", description: "Show trim state" },
@@ -486,6 +571,15 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		type: "boolean",
 		default: false,
 	});
+
+	for (const { flag, roleId } of ROLE_LAUNCH_FLAGS) {
+		const role = getRole(roleId);
+		pi.registerFlag(flag, {
+			description: `Start in flexible role agent mode with the ${role?.label ?? roleId} role`,
+			type: "boolean",
+			default: false,
+		});
+	}
 
 	const persistState = (): void => {
 		pi.appendEntry(FRAG_ENTRY_TYPE, { enabled: state.enabled, role: state.role, trim: state.trim });
@@ -760,6 +854,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		}
 
 		// Startup flag / persisted state restore.
+		const launchRole = resolveLaunchRole(pi);
 		const persisted = parseFragEntry(ctx.sessionManager.getEntries());
 		if (persisted !== undefined) {
 			state.enabled = persisted.enabled;
@@ -770,9 +865,9 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 				// Absent trim in the entry means not trimmed (session default off).
 				state.trim = persisted.trim;
 			}
-		} else if (pi.getFlag("frag") === true) {
+		} else if (pi.getFlag("frag") === true || launchRole !== undefined) {
 			state.enabled = true;
-			state.role = DEFAULT_ROLE_ID;
+			state.role = launchRole ?? DEFAULT_ROLE_ID;
 			// trim still comes from settings when starting via the flag.
 			state.trim = resolveConfiguredFrag(ctx.cwd).trim;
 			// Persist so a resumed session restores frag mode without the flag.

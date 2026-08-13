@@ -6,11 +6,8 @@ Current extensions:
 
 - `pi-codex-rotator.ts` → rotates `openai-codex` credentials on quota exhaustion using a shared account pool
 - `pi-bash-20kb.ts` → overrides `bash` and fails when output exceeds 20KB (or is truncated), instructing the model to run narrower commands
-- `pi-dp-mode.ts` → toggle deliberate practice coach mode via `/dp`
-- `pi-socratic-tutor-mode.ts` → toggle Socratic tutor mode via `/socratic-tutor`
-- `pi-pkm-mode.ts` → toggle Personal Knowledge Management mode via `/pkm`
-- `pi-cbt-mode.ts` → toggle Cognitive Behavioral Therapy mode via `/cbt`
-- `flexible-role-agent.ts` → stable context-builder system prompt + post-history roles via `--frag` / `/frag set <role>` (role swaps never bust cache; mode swaps warn: Continue | Fork | Cancel)
+- `flexible-role-agent.ts` → stable context-builder system prompt + post-history roles via `--frag` / `/frag set <role>` (role swaps never bust cache; mode swaps warn: Continue | Fork | Cancel). Roles: `coding-agent` (default), `analyst`, `pkm`, `cbt`, `dp`, `socratic-tutor`. Launch flags: `--frag`, `--coding`, `--pkm`, `--cbt`, `--dp`, `--socratic-tutor`.
+- `archived/pi-dp-mode.ts`, `archived/pi-socratic-tutor-mode.ts`, `archived/pi-pkm-mode.ts`, `archived/pi-cbt-mode.ts` → superseded by the `dp`, `socratic-tutor`, `pkm`, and `cbt` roles above.
 - `pi-redraw-screen.ts` → `/redraw` command and optional keyboard shortcut to redraw the screen
 - `pi-compaction-modes.ts` → compaction modes (`programmatic`, `cached`, `cached-agentic`, `cached-agentic-tooltraces`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, `vanilla`) with settings-backed selection, ordered markdown tool traces, cwd/home-relative path display, and cache-friendly "dance" modes that produce the summary via a normal chat turn
 - `timestamp-toolcalls.ts` → append local timestamp to every user message so the agent knows current time (format: `YYYY-MM-DDTHH:MM:SS`)
