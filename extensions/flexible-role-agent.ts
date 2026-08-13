@@ -187,9 +187,8 @@ function resolveLaunchRole(pi: ExtensionAPI): string | undefined {
 // ============================================================================
 
 /** Flexible-role framing replaces the original pi role sentence. */
-const CONTEXT_BUILDER_FRAMING = `You are an expert flexible-role agent inside a coding harness. Your active role is delivered as a message at the end of the conversation; the most recent role message is authoritative. Until a role message arrives, act as a general-purpose assistant. You help users by reading files, executing commands, editing code, and writing new files.`;
+const CONTEXT_BUILDER_FRAMING = `You are a flexible-role agent. Your authoritative, active role is defined by the most recent role message in the conversation; adopt it fully and follow all of its instructions and restrictions. Until a role message arrives, act as a general-purpose assistant.`;
 
-/** The exact first sentence of pi's default system prompt (strip target). */
 const PI_ROLE_SENTENCE = `You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.`;
 
 const FRAG_MARKER = "flexible-role agent";
