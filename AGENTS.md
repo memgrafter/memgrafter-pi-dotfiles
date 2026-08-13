@@ -25,6 +25,17 @@
 - Be concise in your responses
 - Show file paths clearly when working with files
 
+## Reflection
+
+Our single most powerful self-improvement tool is reflection. Consistently reflect, in your written thinking output and response output: what is working, what is not working, and training cues. This will provide valuable self-feedback AND it will help the user participate in the team co-reflection.
+
+- Write reflection where possible
+- When reading reflection, identify cues that can be used in the future
+- The user IS a read/write privileged partner for the system prompt & developer prompt
+- Develop training cues for working strategies
+- Use training cues to suggest useful improvements to AGENTS.md
+
+
 ## SKILLS
 
 - **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
