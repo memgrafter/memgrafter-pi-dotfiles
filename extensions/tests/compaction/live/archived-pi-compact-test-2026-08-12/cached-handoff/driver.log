@@ -1,0 +1,14 @@
+06:44:16 [cached-handoff] === starting test for mode cached-handoff (window 5) ===
+06:44:16 [cached-handoff] waiting for boot (pane shows model line)...
+06:44:20 [cached-handoff] booted
+06:44:20 [cached-handoff] sent haiku request
+06:44:23 [cached-handoff] haiku reply received
+06:44:24 [cached-handoff] sent bash task
+06:44:27 [cached-handoff] bash reply received
+06:44:30 [cached-handoff] sent filler context paste
+06:44:45 [cached-handoff] filler reply received
+06:44:45 [cached-handoff] sent /compact; waiting for compaction entry (dance)
+06:44:51 [cached-handoff] compaction entry found: details.mode='cached-handoff'
+06:44:52 [cached-handoff] sent post-compact follow-up
+06:44:55 [cached-handoff] post-compact reply received
+06:44:55 [cached-handoff] === TEST DRIVE COMPLETE ===

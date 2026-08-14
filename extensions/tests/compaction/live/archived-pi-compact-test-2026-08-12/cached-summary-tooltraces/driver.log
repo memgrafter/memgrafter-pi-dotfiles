@@ -1,0 +1,32 @@
+06:44:26 [cached-summary-tooltraces] === starting test for mode cached-summary-tooltraces (window 7) ===
+06:44:26 [cached-summary-tooltraces] waiting for boot (pane shows model line)...
+06:44:30 [cached-summary-tooltraces] booted
+06:44:31 [cached-summary-tooltraces] sent haiku request
+06:44:34 [cached-summary-tooltraces] haiku reply received
+06:44:34 [cached-summary-tooltraces] sent bash task
+06:44:37 [cached-summary-tooltraces] bash reply received
+06:44:40 [cached-summary-tooltraces] sent filler context paste
+06:44:52 [cached-summary-tooltraces] filler reply received
+06:44:52 [cached-summary-tooltraces] sent /compact; waiting for compaction entry (dance)
+06:44:55 [cached-summary-tooltraces] compaction entry found: details.mode='cached-summary-tooltraces'
+06:44:56 [cached-summary-tooltraces] sent post-compact follow-up
+06:44:59 [cached-summary-tooltraces] post-compact reply received
+06:44:59 [cached-summary-tooltraces] === TEST DRIVE COMPLETE ===
+16:17:55 [cached-summary-tooltraces] === starting test for mode cached-summary-tooltraces (window 3) ===
+16:17:55 [cached-summary-tooltraces] waiting for boot (pane shows model line)...
+16:17:59 [cached-summary-tooltraces] booted
+16:17:59 [cached-summary-tooltraces] sent haiku request
+16:17:59 [cached-summary-tooltraces] haiku reply received
+16:18:00 [cached-summary-tooltraces] sent bash task
+16:22:00 [cached-summary-tooltraces] TIMEOUT waiting for: DONE reply
+16:22:00 [cached-summary-tooltraces] --- last pane ---
+16:22:00 [cached-summary-tooltraces] 
+16:22:00 [cached-summary-tooltraces] --- last entries ---
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "3920dec6", "parentId": "4f1d3289", "timestamp": "2026-08-12T13:44:36.943Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "DONE"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 195, "output": 
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "2d6b551f", "parentId": "3920dec6", "timestamp": "2026-08-12T13:44:50.467Z", "message": {"role": "user", "content": [{"type": "text", "text": "Read the following text and reply with exactly: FILLER_OKThis is context filler text for the compaction test. This is context fille
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "48c759a8", "parentId": "2d6b551f", "timestamp": "2026-08-12T13:44:52.189Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "FILLER_OK"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 25086, "ou
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "e96fc2ac", "parentId": "48c759a8", "timestamp": "2026-08-12T13:44:52.673Z", "message": {"role": "user", "content": [{"type": "text", "text": "Reply with ONLY a standalone structured summary of the context so far... do not use tools, do not do any work."}], "timestamp": 178
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "324015e7", "parentId": "e96fc2ac", "timestamp": "2026-08-12T13:44:54.924Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "SUMMARY:\n- Initial request: write a haiku about caching \u2014 I replied with one.\n- Task: ran `ls -la` on `/Users/trentrobb
+16:22:00 [cached-summary-tooltraces] {"type": "compaction", "id": "6a4b2069", "parentId": "324015e7", "timestamp": "2026-08-12T13:44:54.926Z", "summary": "SUMMARY:\n- Initial request: write a haiku about caching \u2014 I replied with one.\n- Task: ran `ls -la` on `/Users/trentrobbins/pi-compact-test/cached-summary-tooltraces` (director
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "414af36d", "parentId": "6a4b2069", "timestamp": "2026-08-12T13:44:56.090Z", "message": {"role": "user", "content": [{"type": "text", "text": "Reply with exactly: POST_COMPACT_OK"}], "timestamp": 1786542296090}}
+16:22:00 [cached-summary-tooltraces] {"type": "message", "id": "b5de1135", "parentId": "414af36d", "timestamp": "2026-08-12T13:44:57.174Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "POST_COMPACT_OK"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 3192

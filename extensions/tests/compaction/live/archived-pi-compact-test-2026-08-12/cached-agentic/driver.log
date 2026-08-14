@@ -1,0 +1,14 @@
+06:44:06 [cached-agentic] === starting test for mode cached-agentic (window 3) ===
+06:44:06 [cached-agentic] waiting for boot (pane shows model line)...
+06:44:10 [cached-agentic] booted
+06:44:10 [cached-agentic] sent haiku request
+06:44:13 [cached-agentic] haiku reply received
+06:44:14 [cached-agentic] sent bash task
+06:44:17 [cached-agentic] bash reply received
+06:44:20 [cached-agentic] sent filler context paste
+06:44:32 [cached-agentic] filler reply received
+06:44:32 [cached-agentic] sent /compact; waiting for compaction entry (dance)
+06:44:38 [cached-agentic] compaction entry found: details.mode='cached-agentic'
+06:44:38 [cached-agentic] sent post-compact follow-up
+06:44:41 [cached-agentic] post-compact reply received
+06:44:41 [cached-agentic] === TEST DRIVE COMPLETE ===

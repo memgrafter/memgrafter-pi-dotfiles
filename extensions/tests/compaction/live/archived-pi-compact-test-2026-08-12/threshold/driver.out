@@ -1,0 +1,8 @@
+07:13:43 [threshold] === starting special test: threshold (window 10) ===
+07:13:47 [threshold] booted
+07:13:50 [threshold] haiku reply received
+07:13:53 [threshold] sent threshold filler paste
+07:14:02 [threshold] ACK reply received; waiting for threshold-triggered dance (no /compact)
+07:14:05 [threshold] threshold compaction: details.mode='cached-handoff-tooltraces' tokensBefore=28387
+07:14:08 [threshold] post-compact reply received
+07:14:08 [threshold] === THRESHOLD TEST COMPLETE ===

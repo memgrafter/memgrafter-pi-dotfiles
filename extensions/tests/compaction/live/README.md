@@ -57,6 +57,7 @@ Checks per mode:
 - `verify.py <mode>` — verify one session file
 - `runs/<mode>/` — cwd, seeded `.pi/settings.json`, session files, driver logs (gitignored)
 - `results-<date>-<topic>.md` — committed run summaries (what was tested, verifier outcome, key metrics, full compaction summaries; raw sessions stay in `runs/`)
+- `archived-*` — retired harness snapshots (e.g. `archived-pi-compact-test-2026-08-12`, the pre-repo scratch harness moved here 2026-08-12)
 
 ## Notes
 

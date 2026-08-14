@@ -1,0 +1,32 @@
+06:49:24 [cached] === starting test for mode cached (window 2) ===
+06:49:24 [cached] waiting for boot (pane shows model line)...
+06:49:28 [cached] booted
+06:49:29 [cached] sent haiku request
+06:49:32 [cached] haiku reply received
+06:49:32 [cached] sent bash task
+06:49:35 [cached] bash reply received
+06:49:38 [cached] sent filler context paste
+06:49:47 [cached] filler reply received
+06:49:47 [cached] sent /compact; waiting for compaction entry (dance)
+06:49:50 [cached] compaction entry found: details.mode='cached'
+06:49:51 [cached] sent post-compact follow-up
+06:49:54 [cached] post-compact reply received
+06:49:54 [cached] === TEST DRIVE COMPLETE ===
+16:17:55 [cached] === starting test for mode cached (window 2) ===
+16:17:55 [cached] waiting for boot (pane shows model line)...
+16:17:59 [cached] booted
+16:17:59 [cached] sent haiku request
+16:17:59 [cached] haiku reply received
+16:18:00 [cached] sent bash task
+16:22:00 [cached] TIMEOUT waiting for: DONE reply
+16:22:00 [cached] --- last pane ---
+16:22:00 [cached] 
+16:22:00 [cached] --- last entries ---
+16:22:00 [cached] {"type": "message", "id": "6584b727", "parentId": "6d221052", "timestamp": "2026-08-12T13:49:34.731Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "DONE"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 305, "output": 
+16:22:00 [cached] {"type": "message", "id": "4fc012c6", "parentId": "6584b727", "timestamp": "2026-08-12T13:49:45.215Z", "message": {"role": "user", "content": [{"type": "text", "text": "Read the following text and reply with exactly: ACKRust async runtime internals: how tokio's work-stealing scheduler distributes ta
+16:22:00 [cached] {"type": "message", "id": "9ae3dcb8", "parentId": "4fc012c6", "timestamp": "2026-08-12T13:49:47.162Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "ACK"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 23123, "output":
+16:22:00 [cached] {"type": "message", "id": "460040ef", "parentId": "9ae3dcb8", "timestamp": "2026-08-12T13:49:47.953Z", "message": {"role": "user", "content": [{"type": "text", "text": "Reply with ONLY a standalone structured summary of the context so far... do not use tools, do not do any work."}], "timestamp": 178
+16:22:00 [cached] {"type": "message", "id": "6de2f9e3", "parentId": "460040ef", "timestamp": "2026-08-12T13:49:50.378Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "The conversation is a test scenario in `/Users/trentrobbins/pi-compact-test/cached`. Sequence of user prompts and my minimal r
+16:22:00 [cached] {"type": "compaction", "id": "32cae5e1", "parentId": "6de2f9e3", "timestamp": "2026-08-12T13:49:50.384Z", "summary": "The conversation is a test scenario in `/Users/trentrobbins/pi-compact-test/cached`. Sequence of user prompts and my minimal responses:\n\n1. **Haiku request** \u2014 A haiku about c
+16:22:00 [cached] {"type": "message", "id": "ac4e6b3e", "parentId": "32cae5e1", "timestamp": "2026-08-12T13:49:51.387Z", "message": {"role": "user", "content": [{"type": "text", "text": "Reply with exactly: POST_COMPACT_OK"}], "timestamp": 1786542591387}}
+16:22:00 [cached] {"type": "message", "id": "2921637c", "parentId": "ac4e6b3e", "timestamp": "2026-08-12T13:49:52.308Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "POST_COMPACT_OK"}], "api": "openai-completions", "provider": "deepseek", "model": "deepseek-v4-flash", "usage": {"input": 330,

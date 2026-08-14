@@ -1,0 +1,14 @@
+06:49:24 [cached] === starting test for mode cached (window 2) ===
+06:49:24 [cached] waiting for boot (pane shows model line)...
+06:49:28 [cached] booted
+06:49:29 [cached] sent haiku request
+06:49:32 [cached] haiku reply received
+06:49:32 [cached] sent bash task
+06:49:35 [cached] bash reply received
+06:49:38 [cached] sent filler context paste
+06:49:47 [cached] filler reply received
+06:49:47 [cached] sent /compact; waiting for compaction entry (dance)
+06:49:50 [cached] compaction entry found: details.mode='cached'
+06:49:51 [cached] sent post-compact follow-up
+06:49:54 [cached] post-compact reply received
+06:49:54 [cached] === TEST DRIVE COMPLETE ===

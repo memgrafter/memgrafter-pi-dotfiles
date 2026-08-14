@@ -1,0 +1,14 @@
+06:44:11 [cached-agentic-tooltraces] === starting test for mode cached-agentic-tooltraces (window 4) ===
+06:44:11 [cached-agentic-tooltraces] waiting for boot (pane shows model line)...
+06:44:15 [cached-agentic-tooltraces] booted
+06:44:15 [cached-agentic-tooltraces] sent haiku request
+06:44:18 [cached-agentic-tooltraces] haiku reply received
+06:44:19 [cached-agentic-tooltraces] sent bash task
+06:44:22 [cached-agentic-tooltraces] bash reply received
+06:44:25 [cached-agentic-tooltraces] sent filler context paste
+06:44:37 [cached-agentic-tooltraces] filler reply received
+06:44:37 [cached-agentic-tooltraces] sent /compact; waiting for compaction entry (dance)
+06:44:43 [cached-agentic-tooltraces] compaction entry found: details.mode='cached-agentic-tooltraces'
+06:44:43 [cached-agentic-tooltraces] sent post-compact follow-up
+06:44:46 [cached-agentic-tooltraces] post-compact reply received
+06:44:46 [cached-agentic-tooltraces] === TEST DRIVE COMPLETE ===

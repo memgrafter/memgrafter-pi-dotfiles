@@ -1,0 +1,81 @@
+07:21:46 [overflow] === starting special test: overflow (window 11) ===
+07:21:50 [overflow] booted
+07:21:51 [overflow] TIMEOUT waiting for overflow notify; pane tail:
+07:21:51 [overflow] . Overflow filler context. Overflow filler context. Overflow filler context. Ove
+🔥 pi --provider deepseek --model deepseek-v4-flash --thinking off -a --session-
+dir /Users/trentrobbins/pi-compact-test/overflow/sessions --extension /Users/tre
+ntrobbins/code/memgrafter-pi-dotfiles/extensions/pi-compaction-modes.ts
+Model scope: local-model, gpt-5.6-luna, qwen3.6-27b, gpt-5.6-sol, kr/claude-opus
+-5, kr/claude-opus-4.8, deepseek-v4-flash, deepseek-v4-flash, deepseek-v4-pro (C
+trl+P to cycle)
+
+ pi v0.83.0
+ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o
+ more
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or
+ extend Pi.
+
+[Skills]
+  backups, coding-tools, flatmachine-manager, knowledge-registry,
+openai-deep-research-citation-fixer, openrouter-typescript-sdk,
+pi-documentation, playwriter, quick-report, replmux, ticket-rs,
+tmux-orchestration
+
+[Prompts]
+  /README
+
+[Extensions]
+  flexible-role-agent.ts, pi-bash-20kb.ts, pi-cbt-mode.ts,
+pi-compaction-modes.ts, pi-dp-mode.ts, pi-multiloop, pi-pkm-mode.ts,
+pi-prom-round.ts, pi-redraw-screen.ts, pi-socratic-tutor-mode.ts,
+pi-thinking-budget.ts, replTool.ts, tps.ts, ts-user-messages.ts
+
+[Skill conflicts]
+  ~/.agents/skills/asd-ste100/SKILL.md
+    description is required
+  ~/code/memgrafter-pi-dotfiles/skills/rlm/SKILL.md
+    description is required
+
+
+────────────────────────────────────────────────────────────────────────────────
+ Update Available
+ New version 0.84.1 is available. Run pi update
+ Changelog: https://pi.dev/changelog
+────────────────────────────────────────────────────────────────────────────────
+
+
+Write a haiku about caching. Reply with only the haiku.
+
+
+
+ [frag role: coding-agent]
+
+ System:
+ You are an expert coding assistant inside a coding harness. You help users by
+ reading files, executing commands, editing code, and writing new files.
+
+
+ ⠏ Working...
+
+────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+~/pi-compact-test/overflow
+0.0%/256k (auto)                     (deepseek) deepseek-v4-flash • thinking off
+frag: coding-agent, trim: on
+
+07:21:53 [overflow] haiku reply received
+07:21:54 [overflow] pasted chunk 0; waiting for end marker in pane
+07:22:12 [overflow] chunk 0 end marker visible; submitting
+07:22:24 [overflow] chunk 0 reply received (context growing)
+07:22:25 [overflow] pasted chunk 1; waiting for end marker in pane
+07:22:37 [overflow] chunk 1 end marker visible; submitting
+07:23:01 [overflow] chunk 1 reply received (context growing)
+07:23:02 [overflow] pasted chunk 2; waiting for end marker in pane
+07:23:14 [overflow] chunk 2 end marker visible; submitting
+07:23:17 [overflow] chunk 2 reply received (context growing)
+07:23:17 [overflow] all chunks sent; waiting for overflow notify
+07:23:22 [overflow] FOUND overflow notify in pane
+07:23:22 [overflow] === OVERFLOW TEST COMPLETE ===

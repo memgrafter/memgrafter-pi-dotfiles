@@ -1,0 +1,11 @@
+07:13:46 [escabort] === starting special test: escabort (window 12) ===
+07:13:50 [escabort] booted
+07:13:53 [escabort] haiku reply received
+07:13:56 [escabort] sent context paste (to slow the summary turn)
+07:14:05 [escabort] ACK reply received
+07:14:05 [escabort] sent /compact; waiting for injected dance message
+07:14:06 [escabort] injected dance message found; sending Escape during summary generation
+07:14:07 [escabort] Escape spam done; waiting for cancel notify
+07:14:07 [escabort] FOUND cancel notify in pane
+07:14:07 [escabort] after Escape: compaction entries=0, injected dance messages=1
+07:14:07 [escabort] === ESC-ABORT TEST COMPLETE ===

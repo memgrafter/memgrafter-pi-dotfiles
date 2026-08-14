@@ -1,0 +1,15 @@
+06:44:36 [vanilla] === starting test for mode vanilla (window 9) ===
+06:44:36 [vanilla] waiting for boot (pane shows model line)...
+06:44:40 [vanilla] booted
+06:44:41 [vanilla] sent haiku request
+06:44:44 [vanilla] haiku reply received
+06:44:44 [vanilla] sent bash task
+06:44:47 [vanilla] bash reply received
+06:44:50 [vanilla] sent filler context paste
+06:45:02 [vanilla] filler reply received
+06:45:02 [vanilla] sent /compact; waiting for compaction entry (dance)
+06:45:08 [vanilla] compaction entry found: details.mode=None
+06:45:08 [vanilla] WARNING: expected details.mode 'vanilla', got None
+06:45:09 [vanilla] sent post-compact follow-up
+06:45:12 [vanilla] post-compact reply received
+06:45:12 [vanilla] === TEST DRIVE COMPLETE ===

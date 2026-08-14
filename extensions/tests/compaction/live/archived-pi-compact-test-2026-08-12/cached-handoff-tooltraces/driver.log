@@ -1,0 +1,14 @@
+06:46:53 [cached-handoff-tooltraces] === starting test for mode cached-handoff-tooltraces (window 6) ===
+06:46:53 [cached-handoff-tooltraces] waiting for boot (pane shows model line)...
+06:46:57 [cached-handoff-tooltraces] booted
+06:46:58 [cached-handoff-tooltraces] sent haiku request
+06:47:01 [cached-handoff-tooltraces] haiku reply received
+06:47:01 [cached-handoff-tooltraces] sent bash task
+06:47:04 [cached-handoff-tooltraces] bash reply received
+06:47:07 [cached-handoff-tooltraces] sent filler context paste
+06:47:16 [cached-handoff-tooltraces] filler reply received
+06:47:16 [cached-handoff-tooltraces] sent /compact; waiting for compaction entry (dance)
+06:47:25 [cached-handoff-tooltraces] compaction entry found: details.mode='cached-handoff-tooltraces'
+06:47:26 [cached-handoff-tooltraces] sent post-compact follow-up
+06:47:29 [cached-handoff-tooltraces] post-compact reply received
+06:47:29 [cached-handoff-tooltraces] === TEST DRIVE COMPLETE ===

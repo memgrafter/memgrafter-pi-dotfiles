@@ -1,0 +1,14 @@
+06:44:26 [cached-summary-tooltraces] === starting test for mode cached-summary-tooltraces (window 7) ===
+06:44:26 [cached-summary-tooltraces] waiting for boot (pane shows model line)...
+06:44:30 [cached-summary-tooltraces] booted
+06:44:31 [cached-summary-tooltraces] sent haiku request
+06:44:34 [cached-summary-tooltraces] haiku reply received
+06:44:34 [cached-summary-tooltraces] sent bash task
+06:44:37 [cached-summary-tooltraces] bash reply received
+06:44:40 [cached-summary-tooltraces] sent filler context paste
+06:44:52 [cached-summary-tooltraces] filler reply received
+06:44:52 [cached-summary-tooltraces] sent /compact; waiting for compaction entry (dance)
+06:44:55 [cached-summary-tooltraces] compaction entry found: details.mode='cached-summary-tooltraces'
+06:44:56 [cached-summary-tooltraces] sent post-compact follow-up
+06:44:59 [cached-summary-tooltraces] post-compact reply received
+06:44:59 [cached-summary-tooltraces] === TEST DRIVE COMPLETE ===
