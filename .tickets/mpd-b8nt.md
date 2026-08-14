@@ -1,6 +1,6 @@
 ---
 id: mpd-b8nt
-status: open
+status: closed
 deps: []
 links: [mpd-sr7t]
 created: 2026-08-12T22:48:09Z
@@ -105,3 +105,9 @@ New scenario `small` in `drive_special.py` + seed case in `run_special.sh`:
 
 Upstream pi-mono changes (Option B: emit `session_before_compact` with empty
 preparation, or add `compaction.minTokens` to pi) — separate ticket if wanted.
+
+## Notes
+
+**2026-08-14T13:36:21Z**
+
+Closed per user decision 2026-08-12: keepRecentTokens configurability not needed. Workaround in place — the live harness seeds per-run project settings and grows session context past the 5000-token guard before /compact (verified in the mpd-sr7t campaign). The detailed implementation plan above remains valid if this is ever wanted.
