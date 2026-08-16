@@ -12,6 +12,7 @@ Current extensions:
 - `pi-compaction-modes.ts` → compaction modes (`programmatic`, `cached`, `cached-agentic`, `cached-agentic-tooltraces`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, `vanilla`) with settings-backed selection, ordered markdown tool traces, cwd/home-relative path display, and cache-friendly "dance" modes that produce the summary via a normal chat turn
 - `timestamp-toolcalls.ts` → append local timestamp to every user message so the agent knows current time (format: `YYYY-MM-DDTHH:MM:SS`)
 - `tps.ts` → show tokens-per-second and token usage summary after each agent run, vendored from pi-mono
+- `pi-cache-miss-notice.ts` → persist significant prompt-cache misses to the session as `custom` entries (customType `cache-miss-notice`), so they survive resume/compaction and appear in session logs; renders in chat with the same wording as pi's built-in notice. Disable via `{ "cache-miss-notice": { "enabled": false } }` in `~/.pi/agent/settings.json`.
 
 Compaction mode setting:
 
