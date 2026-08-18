@@ -3,7 +3,13 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
-import type { ExtensionAPI, ExtensionContext, SessionBeforeCompactEvent, SessionEntry } from "@earendil-works/pi-coding-agent";
+import {
+	DEFAULT_COMPACTION_SETTINGS,
+	type ExtensionAPI,
+	type ExtensionContext,
+	type SessionBeforeCompactEvent,
+	type SessionEntry,
+} from "@earendil-works/pi-coding-agent";
 
 const KEEP_NO_PRE_COMPACTION_MESSAGES_ID = "__pi_compaction_modes_keep_none__";
 const SETTINGS_SECTION = "pi-compaction-modes";
@@ -889,7 +895,15 @@ type DanceState =
 	| { status: "pending"; mode: DanceMode }
 	| { status: "captured"; mode: DanceMode; summary: string };
 
+function exceedsToolBatchCompactionThreshold(ctx: ExtensionContext): boolean {
+	const usage = ctx.getContextUsage();
+	if (usage?.tokens == null) return false;
+
+	return usage.tokens > usage.contextWindow - DEFAULT_COMPACTION_SETTINGS.reserveTokens;
+}
+
 let danceState: DanceState | undefined;
+let compactAfterAgentSettles = false;
 
 export default function (pi: ExtensionAPI) {
 	pi.on("message_end", (event) => {
@@ -899,30 +913,48 @@ export default function (pi: ExtensionAPI) {
 		danceState = { status: "captured", mode: danceState.mode, summary: text };
 	});
 
-	pi.on("turn_end", (_event, ctx) => {
-		if (!danceState) return;
-		// A user abort ends the summary turn; do not auto-retry or compact.
-		if (_event.message.role === "assistant" && (_event.message as { stopReason?: string }).stopReason === "aborted") {
-			ctx.ui.notify("Compaction summary cancelled. No compaction performed.", "info");
+	pi.on("turn_end", (event, ctx) => {
+		if (danceState) {
+			// A user abort ends the summary turn; do not auto-retry or compact.
+			if (event.message.role === "assistant" && (event.message as { stopReason?: string }).stopReason === "aborted") {
+				ctx.ui.notify("Compaction summary cancelled. No compaction performed.", "info");
+				danceState = undefined;
+				return;
+			}
+			if (danceState.status === "captured") {
+				setTimeout(() => {
+					if (danceState?.status !== "captured") return;
+					// Keep the captured state: phase 3 consumes it when session_before_compact
+					// fires inside compact(). Clearing it here would restart phase 1 in a loop.
+					ctx.compact();
+				}, 0);
+				return;
+			}
+			// The summary turn ended without a usable reply; fail without retrying.
+			ctx.ui.notify("Compaction summary failed. No compaction performed. Try /compact again or use another mode.", "warning");
 			danceState = undefined;
 			return;
 		}
-		if (danceState.status === "captured") {
-			setTimeout(() => {
-				if (danceState?.status !== "captured") return;
-				// Keep the captured state: phase 3 consumes it when session_before_compact
-				// fires inside compact(). Clearing it here would restart phase 1 in a loop.
-				ctx.compact();
-			}, 0);
-			return;
-		}
-		// The summary turn ended without a usable reply; fail without retrying.
-		ctx.ui.notify("Compaction summary failed. No compaction performed. Try /compact again or use another mode.", "warning");
-		danceState = undefined;
+
+		if (event.toolResults.length === 0) return;
+		if (compactAfterAgentSettles) return;
+		if (!exceedsToolBatchCompactionThreshold(ctx)) return;
+
+		compactAfterAgentSettles = true;
+		ctx.ui.notify("Compaction threshold reached after tool execution. Stopping the current turn...", "info");
+		ctx.abort();
+	});
+
+	pi.on("agent_settled", (_event, ctx) => {
+		if (!compactAfterAgentSettles) return;
+
+		compactAfterAgentSettles = false;
+		ctx.compact();
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		danceState = undefined;
+		compactAfterAgentSettles = false;
 		if (!ctx.hasUI) return;
 
 		ctx.ui.addAutocompleteProvider((current) => createCompactAutocompleteProvider(current as AutocompleteProviderLike, ctx.cwd) as typeof current);
