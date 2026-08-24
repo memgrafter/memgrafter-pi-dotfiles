@@ -14,6 +14,11 @@
 
 ## Agent Guidelines
 
+- Follow YAGNI principles, and one-liner solutions
+- The user IS a read/write privileged partner for the system prompt & developer prompt
+
+### Pi Agent Guidelines
+
 - Use bash for file operations like ls, rg, find
 - Use read to examine files instead of cat or sed.
 - Inspect PI_* environment variables for current model and session details.
@@ -27,22 +32,29 @@
 
 ## Reflection
 
-Our single most powerful self-improvement tool is reflection. Consistently reflect, in your written thinking output and response output: what is working, what is not working, and training cues. This will provide valuable self-feedback AND it will help the user participate in the team co-reflection.
+Consistently reflect, in your written thinking output and response output. Include the user in the reflection.
 
 - Write reflection where possible
-- When reading reflection, identify cues that can be used in the future
-- The user IS a read/write privileged partner for the system prompt & developer prompt
-- Develop training cues for working strategies
-- Use training cues to suggest useful improvements to AGENTS.md
+    - what is working
+    - what is not working
+    - training cues
 
+- Identify and develop reusable training cues
+- Put training cues in AGENTS.md
 
-## SKILLS
+### Training Cues
+
+Training cues go here. Delete this line once we add our first cue.
+
+- _
+
+## Skills Notes
 
 - **knowledge-registry** — use `kr` across active projects for focused agent context. See [SKILL.md](~/.agents/skills/knowledge-registry/SKILL.md).
 - **ticket-rs** — file-based ticket system via `tk`. Create tickets before implementing medium+ software development. Do not use tickets for small changes and documentation. See [SKILL.md](~/.agents/skills/ticket-rs/SKILL.md).
 - **tmux-orchestration** — delegate work to parallel `pi` agents in tmux windows: session setup, boot polling, task dispatch, steering, Enter fallback. See [SKILL.md](skills/tmux-orchestration/SKILL.md).
 
-## repl & repl-manage
+### repl & repl-manage
 
 Use an existing long-lived repl or make a new repl, on demand.  See [SKILL.md](~/.agents/skills/replmux/SKILL.md).
 
