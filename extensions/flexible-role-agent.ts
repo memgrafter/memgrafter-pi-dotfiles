@@ -250,6 +250,25 @@ function buildTrimmedSystemPrompt(current: string): string {
 	return prompt;
 }
 
+/**
+ * Compose the system prompt this extension returns. The result is handed back
+ * to pi as a wholesale replace (pi uses the returned systemPrompt verbatim),
+ * so this is the single place that decides what the model sees. Frag frames the
+ * prompt for role delivery; trim strips the pi-specific prose sections. Both
+ * are no-ops when their switch is off, so with both off this returns pi's
+ * prompt unchanged.
+ */
+function buildOurSystemPrompt(base: string): string {
+	let prompt = base;
+	if (state.enabled) {
+		prompt = buildFragSystemPrompt(prompt);
+	}
+	if (state.trim) {
+		prompt = buildTrimmedSystemPrompt(prompt);
+	}
+	return prompt;
+}
+
 // ============================================================================
 // State
 // ============================================================================
@@ -900,15 +919,12 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			return undefined;
 		}
 
-		// Trim and frag are decoupled: frag frames the prompt for role delivery,
-		// trim strips the pi-specific prose sections.
-		let systemPrompt = event.systemPrompt;
-		if (state.enabled) {
-			systemPrompt = buildFragSystemPrompt(systemPrompt);
-		}
-		if (state.trim) {
-			systemPrompt = buildTrimmedSystemPrompt(systemPrompt);
-		}
+		// Build our system prompt and return it as a wholesale replace. pi uses the
+		// returned systemPrompt verbatim (agent-session sets agent.state.systemPrompt
+		// to it), so this never mutates pi's prompt in place. Trim and frag are
+		// decoupled: frag frames the prompt for role delivery, trim strips the
+		// pi-specific prose sections.
+		const systemPrompt = buildOurSystemPrompt(event.systemPrompt);
 
 		if (!state.enabled) {
 			return { systemPrompt };
