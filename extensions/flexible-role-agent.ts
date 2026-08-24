@@ -250,6 +250,38 @@ function buildTrimmedSystemPrompt(current: string): string {
 }
 
 /**
+ * Remove the human-readable "Available tools:" text list (and the
+ * "In addition to the tools above" line that references it) from the system
+ * prompt. The structured tool definitions still reach the model via the
+ * provider's tools payload, so this text list is redundant — and on providers
+ * whose chat template also renders the tools (e.g. the qwen template) it
+ * duplicates them. Idempotent: a prompt without the section is returned
+ * unchanged.
+ */
+function stripToolsTextSection(prompt: string): string {
+	const startMarker = "Available tools:";
+	const start = prompt.indexOf(startMarker);
+	if (start === -1) {
+		return prompt;
+	}
+	const lineStart = prompt.lastIndexOf("\n", start) + 1;
+	const endMarker = "In addition to the tools above";
+	const endRef = prompt.indexOf(endMarker, start);
+	let end: number;
+	if (endRef === -1) {
+		// No reference line: drop just the tools list (to the next blank line).
+		const nextBlank = prompt.indexOf("\n\n", start);
+		end = nextBlank === -1 ? prompt.length : nextBlank;
+	} else {
+		// Drop through the end of the reference line so the dangling "In
+		// addition to the tools above" sentence does not remain.
+		const refLineEnd = prompt.indexOf("\n", endRef);
+		end = refLineEnd === -1 ? prompt.length : refLineEnd + 1;
+	}
+	return prompt.slice(0, lineStart) + prompt.slice(end).replace(/^\n+/, "");
+}
+
+/**
  * Compose the system prompt this extension returns. The result is handed back
  * to pi as a wholesale replace (pi uses the returned systemPrompt verbatim),
  * so this is the single place that decides what the model sees. Frag frames the
@@ -265,6 +297,9 @@ function buildOurSystemPrompt(base: string): string {
 	if (state.trim) {
 		prompt = buildTrimmedSystemPrompt(prompt);
 	}
+	if (state.notools) {
+		prompt = stripToolsTextSection(prompt);
+	}
 	return prompt;
 }
 
@@ -279,14 +314,17 @@ interface FragState {
 	enabled: boolean;
 	role: string;
 	trim: boolean;
+	/** When true, the "Available tools:" text list is stripped (structured tools still sent). */
+	notools: boolean;
 	/** Applied on next session_start (used by the Fork flow). */
-	pendingApply?: { enabled?: boolean; role?: string; trim?: boolean };
+	pendingApply?: { enabled?: boolean; role?: string; trim?: boolean; notools?: boolean };
 }
 
 const state: FragState = {
 	enabled: false,
 	role: DEFAULT_ROLE_ID,
 	trim: false,
+	notools: false,
 };
 
 /** In-memory tracker so the role message is injected only on role change. */
@@ -318,7 +356,7 @@ function readJsonObject(filePath: string): Record<string, unknown> | undefined {
 		: undefined;
 }
 
-function readFragSettings(filePath: string): { enabled?: boolean; trim?: boolean } | undefined {
+function readFragSettings(filePath: string): { enabled?: boolean; trim?: boolean; notools?: boolean } | undefined {
 	const settings = readJsonObject(filePath);
 	const section = settings?.[SETTINGS_SECTION];
 	if (!section || typeof section !== "object" || Array.isArray(section)) {
@@ -326,9 +364,11 @@ function readFragSettings(filePath: string): { enabled?: boolean; trim?: boolean
 	}
 	const enabled = (section as { enabled?: unknown }).enabled;
 	const trim = (section as { trim?: unknown }).trim;
+	const notools = (section as { notools?: unknown }).notools;
 	return {
 		enabled: typeof enabled === "boolean" ? enabled : undefined,
 		trim: typeof trim === "boolean" ? trim : undefined,
+		notools: typeof notools === "boolean" ? notools : undefined,
 	};
 }
 
@@ -338,12 +378,16 @@ const DEFAULT_SETTINGS_ENABLED = false;
 /** Default when the "trim" setting is absent: off. */
 const DEFAULT_SETTINGS_TRIM = false;
 
-function resolveConfiguredFrag(cwd: string): { enabled: boolean; trim: boolean } {
+/** Default when the "notools" setting is absent: off. */
+const DEFAULT_SETTINGS_NOTOOLS = false;
+
+function resolveConfiguredFrag(cwd: string): { enabled: boolean; trim: boolean; notools: boolean } {
 	const project = readFragSettings(getProjectSettingsPath(cwd));
 	const globalSettings = readFragSettings(getGlobalSettingsPath());
 	return {
 		enabled: project?.enabled ?? globalSettings?.enabled ?? DEFAULT_SETTINGS_ENABLED,
 		trim: project?.trim ?? globalSettings?.trim ?? DEFAULT_SETTINGS_TRIM,
+		notools: project?.notools ?? globalSettings?.notools ?? DEFAULT_SETTINGS_NOTOOLS,
 	};
 }
 
@@ -354,7 +398,7 @@ function getSettingsPathToUpdate(cwd: string): string {
 		: getGlobalSettingsPath();
 }
 
-function writeConfiguredFrag(cwd: string, patch: { enabled?: boolean; trim?: boolean }): void {
+function writeConfiguredFrag(cwd: string, patch: { enabled?: boolean; trim?: boolean; notools?: boolean }): void {
 	const settingsPath = getSettingsPathToUpdate(cwd);
 	const settings = readJsonObject(settingsPath) ?? {};
 	const section = settings[SETTINGS_SECTION];
@@ -369,7 +413,7 @@ function writeConfiguredFrag(cwd: string, patch: { enabled?: boolean; trim?: boo
 	writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
 }
 
-function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): { enabled: boolean; role?: string; trim?: boolean } | undefined {
+function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): { enabled: boolean; role?: string; trim?: boolean; notools?: boolean } | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
 		const entry = entries[index] as { type?: string; customType?: string; data?: unknown };
 		if (entry.type !== "custom" || entry.customType !== FRAG_ENTRY_TYPE) {
@@ -383,11 +427,13 @@ function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["
 		const enabled = (data as { enabled?: unknown }).enabled;
 		const role = (data as { role?: unknown }).role;
 		const trim = (data as { trim?: unknown }).trim;
+		const notools = (data as { notools?: unknown }).notools;
 		if (typeof enabled === "boolean") {
 			return {
 				enabled,
 				role: typeof role === "string" ? role : undefined,
 				trim: typeof trim === "boolean" ? trim : undefined,
+				notools: typeof notools === "boolean" ? notools : undefined,
 			};
 		}
 		return undefined;
@@ -436,7 +482,7 @@ function updateStatus(ctx: ExtensionContext): void {
 	if (!ctx.hasUI) {
 		return;
 	}
-	const statusText = `frag: ${state.enabled ? state.role : "off"}, trim: ${state.trim ? "on" : "off"}`;
+	const statusText = `frag: ${state.enabled ? state.role : "off"}, trim: ${state.trim ? "on" : "off"}, notools: ${state.notools ? "on" : "off"}`;
 	ctx.ui.setStatus("frag", state.enabled ? ctx.ui.theme.fg("accent", statusText) : statusText);
 }
 
@@ -479,6 +525,9 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 		{ value: "trim", label: "trim", description: "Show trim state" },
 		{ value: "trim on", label: "trim on", description: "Enable prompt trimming (new sessions)" },
 		{ value: "trim off", label: "trim off", description: "Disable prompt trimming" },
+		{ value: "notools", label: "notools", description: "Show notools state" },
+		{ value: "notools on", label: "notools on", description: "Strip the Available tools text list (structured tools still sent)" },
+		{ value: "notools off", label: "notools off", description: "Keep the Available tools text list" },
 		{ value: "status", label: "status", description: "Show current mode, role, and trim state" },
 		{ value: "show", label: "show", description: "Display the current system prompt (ephemeral, not stored)" },
 		{ value: "help", label: "help", description: "Show usage" },
@@ -492,7 +541,7 @@ function getFragArgumentCompletions(prefix: string): AutocompleteItemLike[] | nu
 }
 
 function buildFragUsageLine(): string {
-	return `flexible role agent mode (current: frag: ${state.enabled ? roleLabel(state.role) : "off"}, trim: ${state.trim ? "on" : "off"}) — /frag on|off|status|show, /frag trim on|off (new sessions), /frag set ${ROLES.map((r) => r.id).join("|")}`;
+	return `flexible role agent mode (current: frag: ${state.enabled ? roleLabel(state.role) : "off"}, trim: ${state.trim ? "on" : "off"}, notools: ${state.notools ? "on" : "off"}) — /frag on|off|status|show, /frag trim on|off, /frag notools on|off (new sessions), /frag set ${ROLES.map((r) => r.id).join("|")}`;
 }
 
 function replaceFragCommandDescription(
@@ -606,7 +655,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 	}
 
 	const persistState = (): void => {
-		pi.appendEntry(FRAG_ENTRY_TYPE, { enabled: state.enabled, role: state.role, trim: state.trim });
+		pi.appendEntry(FRAG_ENTRY_TYPE, { enabled: state.enabled, role: state.role, trim: state.trim, notools: state.notools });
 	};
 
 	pi.registerCommand("frag", {
@@ -619,8 +668,8 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 				if (ctx.hasUI) {
 					ctx.ui.notify(
 						state.enabled
-							? `frag mode enabled. Role: ${roleLabel(state.role)}. trim: ${state.trim ? "on" : "off"}`
-							: `frag mode disabled. trim: ${state.trim ? "on" : "off"}`,
+							? `frag mode enabled. Role: ${roleLabel(state.role)}. trim: ${state.trim ? "on" : "off"}, notools: ${state.notools ? "on" : "off"}`
+							: `frag mode disabled. trim: ${state.trim ? "on" : "off"}, notools: ${state.notools ? "on" : "off"}`,
 						"info",
 					);
 				}
@@ -630,14 +679,9 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 
 			if (lower === "show") {
 				if (ctx.hasUI) {
-					const current = ctx.getSystemPrompt();
-					let prompt = current;
-					if (state.enabled) {
-						prompt = buildFragSystemPrompt(prompt);
-					}
-					if (state.trim) {
-						prompt = buildTrimmedSystemPrompt(prompt);
-					}
+					// Re-apply the transforms to the effective prompt (idempotent) so the
+					// preview matches what the model will actually see.
+					const prompt = buildOurSystemPrompt(ctx.getSystemPrompt());
 					ctx.ui.notify(prompt, "info");
 				}
 				return;
@@ -646,7 +690,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			if (lower === "help") {
 				if (ctx.hasUI) {
 					ctx.ui.notify(
-						`${buildFragUsageLine()}\nRole updates are delivered as a post-history message and never touch the system prompt.\n/frag trim on|off strips the Guidelines and Pi documentation sections from the system prompt; it is generally intended for new sessions.`,
+						`${buildFragUsageLine()}\nRole updates are delivered as a post-history message and never touch the system prompt.\n/frag trim on|off strips the Guidelines and Pi documentation sections; /frag notools on|off strips the Available tools text list (structured tools are still sent). Both are generally intended for new sessions.`,
 						"info",
 					);
 				}
@@ -680,6 +724,26 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 
 			if (lower === "trim off" || lower === "trim disable" || lower === "trim disabled") {
 				await setTrim(ctx, false);
+				return;
+			}
+
+			if (lower === "notools") {
+				if (ctx.hasUI) {
+					ctx.ui.notify(
+						`notools mode ${state.notools ? "enabled" : "disabled"} — the Available tools text list is ${state.notools ? "stripped" : "kept"} (structured tools are always sent).`,
+						"info",
+					);
+				}
+				return;
+			}
+
+			if (lower === "notools on" || lower === "notools enable" || lower === "notools enabled") {
+				await setNotools(ctx, true);
+				return;
+			}
+
+			if (lower === "notools off" || lower === "notools disable" || lower === "notools disabled") {
+				await setNotools(ctx, false);
 				return;
 			}
 
@@ -852,6 +916,62 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		}
 	}
 
+	/**
+	 * Toggle stripping of the "Available tools:" text list. Changing notools
+	 * changes the system prompt, so it may bust a warm cache — warn (Continue |
+	 * Fork | Cancel), mirroring /frag trim. The structured tools payload is
+	 * always sent; only the redundant text list is removed. Generally intended
+	 * for new sessions.
+	 */
+	async function setNotools(ctx: ExtensionCommandContext, target: boolean): Promise<void> {
+		if (state.notools === target) {
+			if (ctx.hasUI) {
+				ctx.ui.notify(`notools mode already ${target ? "enabled" : "disabled"}.`, "info");
+			}
+			return;
+		}
+
+		// Content-based cache-bust detection: a notools prompt lacks the
+		// "Available tools:" section. Warn iff this toggle actually changes it.
+		const currentlyNotools = !ctx.getSystemPrompt().includes("Available tools:");
+		if (currentlyNotools !== target) {
+			const from = currentlyNotools ? "notools" : "tools";
+			const to = target ? "notools" : "tools";
+			const choice = await confirmSystemPromptChange(ctx, from, to);
+			if (choice === "cancel") {
+				return;
+			}
+			if (choice === "fork") {
+				const leaf = ctx.sessionManager.getLeafEntry();
+				if (!leaf) {
+					if (ctx.hasUI) {
+						ctx.ui.notify("Cannot fork: no session entry to fork from.", "warning");
+					}
+					return;
+				}
+				state.notools = target;
+				state.pendingApply = { notools: target };
+				writeConfiguredFrag(ctx.cwd, { notools: target });
+				await ctx.fork(leaf.id, { position: "at" });
+				return;
+			}
+		}
+
+		state.notools = target;
+		state.pendingApply = undefined;
+		persistState();
+		writeConfiguredFrag(ctx.cwd, { notools: target });
+		updateStatus(ctx);
+		if (ctx.hasUI) {
+			ctx.ui.notify(
+				target
+					? "notools mode enabled — the Available tools text list will be stripped from the system prompt (structured tools are still sent). Note: generally intended for new sessions."
+					: "notools mode disabled",
+				"info",
+			);
+		}
+	}
+
 	pi.on("session_start", async (_event, ctx) => {
 		// Fork flow: apply the pending change to the forked session.
 		if (state.pendingApply) {
@@ -863,6 +983,9 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			}
 			if (state.pendingApply.trim !== undefined) {
 				state.trim = state.pendingApply.trim;
+			}
+			if (state.pendingApply.notools !== undefined) {
+				state.notools = state.pendingApply.notools;
 			}
 			state.pendingApply = undefined;
 			persistState();
@@ -889,20 +1012,26 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 				// Absent trim in the entry means not trimmed (session default off).
 				state.trim = persisted.trim;
 			}
+			if (persisted.notools !== undefined) {
+				state.notools = persisted.notools;
+			}
 		} else if (pi.getFlag("frag") === true || launchRole !== undefined) {
 			state.enabled = true;
 			state.role = launchRole ?? DEFAULT_ROLE_ID;
-			// trim still comes from settings when starting via the flag.
-			state.trim = resolveConfiguredFrag(ctx.cwd).trim;
+			// trim/notools still come from settings when starting via the flag.
+			const configured = resolveConfiguredFrag(ctx.cwd);
+			state.trim = configured.trim;
+			state.notools = configured.notools;
 			// Persist so a resumed session restores frag mode without the flag.
 			persistState();
 		} else {
-			// New session: both switches default off; opt in via the optional
+			// New session: switches default off; opt in via the optional
 			// "frag" settings key (project .pi/settings.json →
 			// global ~/.pi/agent/settings.json).
 			const configured = resolveConfiguredFrag(ctx.cwd);
 			state.enabled = configured.enabled;
 			state.trim = configured.trim;
+			state.notools = configured.notools;
 			state.role = DEFAULT_ROLE_ID;
 		}
 
@@ -916,7 +1045,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("before_agent_start", async (event) => {
-		if (!state.enabled && !state.trim) {
+		if (!state.enabled && !state.trim && !state.notools) {
 			return undefined;
 		}
 
