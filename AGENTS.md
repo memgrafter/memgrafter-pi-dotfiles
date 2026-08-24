@@ -46,6 +46,8 @@ Our single most powerful self-improvement tool is reflection. Consistently refle
 
 Use an existing long-lived repl or make a new repl, on demand.  See [SKILL.md](~/.agents/skills/replmux/SKILL.md).
 
+Prefer repl tool (replmux) to one-off scripts of all types. There are many languages available in replmux, so read the skill before you write any disposable scripts, long commands, or code. Also a good replacement for bash tool during interpolation or longer commands.
+
 ### Tickets via REPL
 
 Manage `tk` tickets from the Python REPL using `subprocess` — avoids bash escaping entirely (args passed as a list, not a shell string).
@@ -104,11 +106,12 @@ kr('registry', 'delete', 'auth-knowledge')
 
 ## Git & Commits
 
-- Write meaningful commit messages: imperative mood, present tense, ~50 char subject line.
+- Write meaningful commit messages: conventional commits, imperative mood, present tense, ~50 char subject line.
 - Keep commits small and focused — one logical change per commit.
-- Run `git diff --stat` before committing so you know exactly what's changing.
+- Use `git status` / `git diff --staged --stat` to verify only your changes are staged before committing
+- never use `git add -A` or a variant, dirty state belongs to other agents.
 - Prefer rebasing over merging for feature branches; squash only when it improves readability.
-- Do not touch unrelated files from other workers, you are not the only agent.
+- Do not touch dirty git state or unrelated files from other workers, you are not the only agent.
 
 ## Coding Standards
 
@@ -134,13 +137,23 @@ kr('registry', 'delete', 'auth-knowledge')
 
 Delegate independent work to `pi` agents in separate tmux windows. Full guide: use the **tmux-orchestration** skill — [skills/tmux-orchestration/SKILL.md](skills/tmux-orchestration/SKILL.md).
 
-
-## Tools
+## Preferred Shell Tools
 
 - Use CodeMapper `cm` cli tool for tree-sitter based code reading and exploring. See `cm --help` for usage.
 - Prefer rg (fallback grep) for searching
 - Prefer fd (fallback find) for locating files by pattern
-- Use `git status` / `git diff` to verify only your changes are staged before committing, never use `git add -A` or a variant, dirty state belongs to other agents.
+
+## Cua Session Recording
+
+Record every GUI agent session for learning data + replay.
+
+1. Before the first cua action: `cua-driver recording start ~/cua-trajectories/$(date +%Y-%m-%d_%H%M%S)`
+2. Drive the app normally.
+3. Auto-stops on session end; `cua-driver recording stop` to end early.
+
+- Fresh dir per session (turn counter restarts at 1 each run).
+- Video on by default (`recording.mp4`); skip with `record_video:false`.
+- Captures agent actions only, not manual use.
 
 ## Communication
 
