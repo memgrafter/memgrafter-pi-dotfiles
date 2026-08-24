@@ -50,10 +50,9 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
-import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
+import { getAgentDir, getMarkdownTheme } from "@mariozechner/pi-coding-agent";
 import type {
 	ExtensionAPI,
 	ExtensionCommandContext,
@@ -304,7 +303,9 @@ function getProjectSettingsPath(cwd: string): string {
 }
 
 function getGlobalSettingsPath(): string {
-	return join(homedir(), ".pi", "agent", "settings.json");
+	// Use pi's agent dir so PI_CODING_AGENT_DIR is honored (matches where pi reads
+	// its own settings), instead of a hardcoded ~/.pi/agent.
+	return join(getAgentDir(), "settings.json");
 }
 
 function readJsonObject(filePath: string): Record<string, unknown> | undefined {
