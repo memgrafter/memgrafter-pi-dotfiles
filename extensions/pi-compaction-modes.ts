@@ -47,6 +47,12 @@ type CompactionModeSettings = {
 	mode?: CompactionMode;
 };
 
+type CompactionSettings = {
+	enabled: boolean;
+	reserveTokens: number;
+	keepRecentTokens: number;
+};
+
 type CommandIntent =
 	| { action: "compact"; mode?: CompactionMode; customInstructions?: string }
 	| { action: "set"; mode: CompactionMode }
@@ -329,6 +335,23 @@ function readModeFromSettingsFile(filePath: string): CompactionMode | undefined 
 
 function resolveConfiguredMode(cwd: string): CompactionMode {
 	return readModeFromSettingsFile(getProjectSettingsPath(cwd)) ?? readModeFromSettingsFile(getGlobalSettingsPath()) ?? DEFAULT_COMPACTION_MODE;
+}
+
+function readCompactionSectionFromSettingsFile(filePath: string): CompactionSettings | undefined {
+	const settings = readJsonObject(filePath);
+	const section = settings?.["compaction"];
+	if (!section || typeof section !== "object" || Array.isArray(section)) return;
+	return section as CompactionSettings;
+}
+
+function resolveCompactionSettings(cwd: string): CompactionSettings {
+	const project = readCompactionSectionFromSettingsFile(getProjectSettingsPath(cwd));
+	const global = readCompactionSectionFromSettingsFile(getGlobalSettingsPath());
+	return {
+		enabled: project?.enabled ?? global?.enabled ?? DEFAULT_COMPACTION_SETTINGS.enabled,
+		reserveTokens: project?.reserveTokens ?? global?.reserveTokens ?? DEFAULT_COMPACTION_SETTINGS.reserveTokens,
+		keepRecentTokens: project?.keepRecentTokens ?? global?.keepRecentTokens ?? DEFAULT_COMPACTION_SETTINGS.keepRecentTokens,
+	};
 }
 
 function getSettingsPathToUpdate(cwd: string): string {
@@ -895,11 +918,11 @@ type DanceState =
 	| { status: "pending"; mode: DanceMode }
 	| { status: "captured"; mode: DanceMode; summary: string };
 
-function exceedsToolBatchCompactionThreshold(ctx: ExtensionContext): boolean {
+function exceedsToolBatchCompactionThreshold(ctx: ExtensionContext, reserveTokens: number): boolean {
 	const usage = ctx.getContextUsage();
 	if (usage?.tokens == null) return false;
 
-	return usage.tokens > usage.contextWindow - DEFAULT_COMPACTION_SETTINGS.reserveTokens;
+	return usage.tokens > usage.contextWindow - reserveTokens;
 }
 
 let danceState: DanceState | undefined;
@@ -938,7 +961,9 @@ export default function (pi: ExtensionAPI) {
 
 		if (event.toolResults.length === 0) return;
 		if (compactAfterAgentSettles) return;
-		if (!exceedsToolBatchCompactionThreshold(ctx)) return;
+		const compactionSettings = resolveCompactionSettings(ctx.cwd);
+		if (!compactionSettings.enabled) return;
+		if (!exceedsToolBatchCompactionThreshold(ctx, compactionSettings.reserveTokens)) return;
 
 		compactAfterAgentSettles = true;
 		ctx.ui.notify("Compaction threshold reached after tool execution. Stopping the current turn...", "info");
