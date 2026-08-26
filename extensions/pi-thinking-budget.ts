@@ -101,7 +101,10 @@ export default function (pi: ExtensionAPI) {
 
 		return {
 			...payload,
+			// llama.cpp reads thinking_budget_tokens; vLLM reads thinking_token_budget.
+			// Send both so the same budget applies across backends.
 			thinking_budget_tokens: budget,
+			thinking_token_budget: budget,
 		};
 	});
 }
