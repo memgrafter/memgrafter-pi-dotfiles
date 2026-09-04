@@ -11,8 +11,8 @@ import {
 
 // Warm-cache auto compact on idle.
 //
-// After the agent settles (or a session starts / the tree is navigated), an idle
-// timer is armed. If no user input or agent activity happens for `idleSeconds`
+// After an agent run settles, an idle timer is armed. If no user input or
+// agent activity happens for `idleSeconds`
 // (default 240s — under Anthropic's 5-minute prompt-cache TTL even with clock
 // skew), a compaction is triggered while the prompt cache is still warm: the
 // summary turn (dance modes) or the built-in summarizer reuses the cached
@@ -143,7 +143,7 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// The agent fully settled: no streaming, retry, compaction, or queued
-	// continuation will run. Start the idle clock.
+	// continuation will run. This is the only thing that starts the idle clock.
 	pi.on("agent_settled", (_event, ctx) => arm(ctx));
 
 	// User activity: a new run starts or real input arrives. Extension-sourced
@@ -153,7 +153,9 @@ export default function (pi: ExtensionAPI) {
 		if (event.source === "interactive" || event.source === "rpc") disarm();
 	});
 
-	pi.on("session_start", (_event, ctx) => arm(ctx));
-	pi.on("session_tree", (_event, ctx) => arm(ctx));
+	// Session start, tree navigation, and shutdown are intentional user choices
+	// about context: they cancel a pending compaction but never start the clock.
+	pi.on("session_start", () => disarm());
+	pi.on("session_tree", () => disarm());
 	pi.on("session_shutdown", () => disarm());
 }
