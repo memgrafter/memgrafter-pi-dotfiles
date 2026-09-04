@@ -10,6 +10,7 @@ Current extensions:
 - `archived/pi-dp-mode.ts`, `archived/pi-socratic-tutor-mode.ts`, `archived/pi-pkm-mode.ts`, `archived/pi-cbt-mode.ts` → superseded by the `dp`, `socratic-tutor`, `pkm`, and `cbt` roles above.
 - `pi-redraw-screen.ts` → `/redraw` command and optional keyboard shortcut to redraw the screen
 - `pi-compaction-modes.ts` → compaction modes (`programmatic`, `cached`, `cached-agentic`, `cached-agentic-tooltraces`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, `vanilla`) with settings-backed selection, ordered markdown tool traces, cwd/home-relative path display, and cache-friendly "dance" modes that produce the summary via a normal chat turn
+- `pi-idle-compact.ts` → warm-cache auto compact on idle: after the agent settles (or a session/tree change), a configurable idle timer (default 240s, under Anthropic's 5-minute cache TTL even with clock skew) triggers compaction while the prompt cache is still warm, shrinking context for later turns; `/tree` back if you don't need it. Depends on `pi-compaction-modes.ts` (imports mode list, selection, and settings helpers; passes the mode like `/compact <mode>`). Skips when busy, when usage is unknown/small, and when the leaf is already a compaction entry. Extension-sourced input (dance summary turns) does not reset the clock.
 - `timestamp-toolcalls.ts` → append local timestamp to every user message so the agent knows current time (format: `YYYY-MM-DDTHH:MM:SS`)
 - `tps.ts` → show tokens-per-second and token usage summary after each agent run, vendored from pi-mono
 - `pi-cache-miss-notice.ts` → persist significant prompt-cache misses to the session as `custom` entries (customType `cache-miss-notice`), so they survive resume/compaction and appear in session logs; renders in chat with the same wording as pi's built-in notice. Disable via `{ "cache-miss-notice": { "enabled": false } }` in `~/.pi/agent/settings.json`.
@@ -27,6 +28,22 @@ Compaction mode setting:
 ```
 
 Use `/compact set <mode>` to save one of `programmatic`, `cached`, `cached-agentic`, `cached-agentic-tooltraces`, `cached-handoff`, `cached-handoff-tooltraces`, `cached-summary-tooltraces`, or `vanilla`.
+
+Idle compact setting (all fields optional; project `.pi/settings.json` overrides global `~/.pi/agent/settings.json`):
+
+```json
+{
+  "pi-idle-compact": {
+    "enabled": true,
+    "idleSeconds": 240,
+    "mode": "cached"
+  }
+}
+```
+
+- `idleSeconds`: integer seconds before idle triggers compaction (default 240; invalid values fall back to 240)
+- `mode`: any mode from the list above (default: the mode configured for `pi-compaction-modes`)
+- `enabled`: set `false` to disable the idle trigger
 
 Patterns:
 

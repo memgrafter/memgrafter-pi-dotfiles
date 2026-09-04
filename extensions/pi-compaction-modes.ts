@@ -13,7 +13,7 @@ import {
 
 const KEEP_NO_PRE_COMPACTION_MESSAGES_ID = "__pi_compaction_modes_keep_none__";
 const SETTINGS_SECTION = "pi-compaction-modes";
-const COMPACTION_MODES = [
+export const COMPACTION_MODES = [
 	"programmatic",
 	"cached",
 	"cached-agentic",
@@ -23,9 +23,9 @@ const COMPACTION_MODES = [
 	"cached-summary-tooltraces",
 	"vanilla",
 ] as const;
-const DEFAULT_COMPACTION_MODE: CompactionMode = "vanilla";
+export const DEFAULT_COMPACTION_MODE: CompactionMode = "vanilla";
 
-type CompactionMode = (typeof COMPACTION_MODES)[number];
+export type CompactionMode = (typeof COMPACTION_MODES)[number];
 
 const DEFAULT_COMPACTION_OPTIONS = {
 	retention: {
@@ -280,7 +280,7 @@ function isCompactionMode(value: string): value is CompactionMode {
 	return (COMPACTION_MODES as readonly string[]).includes(value);
 }
 
-function normalizeMode(value: unknown): CompactionMode | undefined {
+export function normalizeMode(value: unknown): CompactionMode | undefined {
 	if (typeof value !== "string") return;
 	const normalized = value.trim().toLowerCase();
 	return isCompactionMode(normalized) ? normalized : undefined;
@@ -312,15 +312,15 @@ function parseCommandIntent(customInstructions: string | undefined): CommandInte
 	return { action: "compact", customInstructions: trimmed };
 }
 
-function getProjectSettingsPath(cwd: string): string {
+export function getProjectSettingsPath(cwd: string): string {
 	return path.join(cwd, ".pi", "settings.json");
 }
 
-function getGlobalSettingsPath(): string {
+export function getGlobalSettingsPath(): string {
 	return path.join(homedir(), ".pi", "agent", "settings.json");
 }
 
-function readJsonObject(filePath: string): Record<string, unknown> | undefined {
+export function readJsonObject(filePath: string): Record<string, unknown> | undefined {
 	if (!existsSync(filePath)) return;
 	const parsed = JSON.parse(readFileSync(filePath, "utf-8")) as unknown;
 	return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : undefined;
@@ -333,7 +333,7 @@ function readModeFromSettingsFile(filePath: string): CompactionMode | undefined 
 	return normalizeMode((section as CompactionModeSettings).mode);
 }
 
-function resolveConfiguredMode(cwd: string): CompactionMode {
+export function resolveConfiguredMode(cwd: string): CompactionMode {
 	return readModeFromSettingsFile(getProjectSettingsPath(cwd)) ?? readModeFromSettingsFile(getGlobalSettingsPath()) ?? DEFAULT_COMPACTION_MODE;
 }
 
@@ -344,7 +344,7 @@ function readCompactionSectionFromSettingsFile(filePath: string): CompactionSett
 	return section as CompactionSettings;
 }
 
-function resolveCompactionSettings(cwd: string): CompactionSettings {
+export function resolveCompactionSettings(cwd: string): CompactionSettings {
 	const project = readCompactionSectionFromSettingsFile(getProjectSettingsPath(cwd));
 	const global = readCompactionSectionFromSettingsFile(getGlobalSettingsPath());
 	return {
