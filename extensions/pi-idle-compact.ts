@@ -32,12 +32,14 @@ import {
 //     "pi-idle-compact": {
 //       "enabled": true,      // default: true
 //       "idleSeconds": 240,   // integer seconds, default: 240
+//       "minTokens": 90000,   // compact only above this context size, default: 90000
 //       "mode": "cached"      // optional; default: the mode configured in pi-compaction-modes
 //     }
 //   }
 
 const SETTINGS_SECTION = "pi-idle-compact";
 const DEFAULT_IDLE_SECONDS = 240;
+const DEFAULT_MIN_TOKENS = 90_000;
 
 // Compaction outcomes that are expected for an idle trigger and must not be
 // surfaced as errors.
@@ -54,6 +56,7 @@ const EXPECTED_COMPACT_ERRORS = [
 type IdleCompactSettings = {
 	enabled: boolean;
 	idleSeconds: number;
+	minTokens: number;
 	mode: CompactionMode | undefined;
 };
 
@@ -69,6 +72,11 @@ function parseIdleSeconds(value: unknown): number | undefined {
 	return value;
 }
 
+function parseMinTokens(value: unknown): number | undefined {
+	if (typeof value !== "number" || !Number.isInteger(value) || value < 1) return;
+	return value;
+}
+
 function resolveIdleCompactSettings(cwd: string): IdleCompactSettings {
 	const project = readIdleCompactSection(getProjectSettingsPath(cwd));
 	const global = readIdleCompactSection(getGlobalSettingsPath());
@@ -76,6 +84,8 @@ function resolveIdleCompactSettings(cwd: string): IdleCompactSettings {
 		enabled: project?.enabled ?? global?.enabled ?? true,
 		idleSeconds:
 			parseIdleSeconds(project?.idleSeconds) ?? parseIdleSeconds(global?.idleSeconds) ?? DEFAULT_IDLE_SECONDS,
+		minTokens:
+			parseMinTokens(project?.minTokens) ?? parseMinTokens(global?.minTokens) ?? DEFAULT_MIN_TOKENS,
 		mode: normalizeMode(project?.mode) ?? normalizeMode(global?.mode),
 	};
 }
@@ -89,10 +99,14 @@ function fireIdleCompact(ctx: ExtensionContext, idleSeconds: number): void {
 	if (!settings.enabled) return;
 	if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
 
-	// Skip when usage is unknown (e.g. right after a compaction) or when there
-	// is nothing past the keep window to summarize (pi would refuse to compact).
+	// Skip when usage is unknown (e.g. right after a compaction).
 	const usage = ctx.getContextUsage();
 	if (usage?.tokens == null) return;
+
+	// Below the configured threshold, small sessions are left alone.
+	if (usage.tokens <= settings.minTokens) return;
+
+	// Nothing past the keep window to summarize (pi would refuse to compact).
 	const { keepRecentTokens } = resolveCompactionSettings(ctx.cwd);
 	if (usage.tokens <= keepRecentTokens) return;
 
