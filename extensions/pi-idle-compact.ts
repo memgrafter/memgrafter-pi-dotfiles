@@ -94,7 +94,7 @@ function isExpectedCompactionError(message: string): boolean {
 	return EXPECTED_COMPACT_ERRORS.some((expected) => message.includes(expected));
 }
 
-function fireIdleCompact(ctx: ExtensionContext, idleSeconds: number): void {
+function fireIdleCompact(ctx: ExtensionContext, idleSeconds: number): CompactionMode | undefined {
 	const settings = resolveIdleCompactSettings(ctx.cwd);
 	if (!settings.enabled) return;
 	if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
@@ -120,20 +120,27 @@ function fireIdleCompact(ctx: ExtensionContext, idleSeconds: number): void {
 			"info",
 		);
 	}
+	// No onComplete notify: in dance modes this call is intentionally
+	// cancelled and never completes here. session_compact fires when the
+	// compaction entry actually lands, in every mode; the factory's
+	// session_compact handler carries the post-compaction notice instead,
+	// so it is still visible when the user returns.
 	ctx.compact({
 		customInstructions: mode,
-		onComplete: () => {
-			if (ctx.hasUI) ctx.ui.notify(`Idle compaction complete (mode: ${mode}).`, "info");
-		},
 		onError: (error) => {
 			if (isExpectedCompactionError(error.message)) return;
 			if (ctx.hasUI) ctx.ui.notify(`Idle compaction failed: ${error.message}`, "warning");
 		},
 	});
+	return mode;
 }
 
 export default function (pi: ExtensionAPI) {
 	let idleTimer: ReturnType<typeof setTimeout> | undefined;
+	// An idle compaction was launched and its completion is not yet known
+	// (dance modes complete asynchronously via the summary turn). Holds the
+	// mode so session_compact can announce the finished compaction.
+	let awaitingCompletion: CompactionMode | undefined;
 
 	function disarm(): void {
 		if (idleTimer === undefined) return;
@@ -148,7 +155,8 @@ export default function (pi: ExtensionAPI) {
 		idleTimer = setTimeout(() => {
 			idleTimer = undefined;
 			try {
-				fireIdleCompact(ctx, settings.idleSeconds);
+				const launched = fireIdleCompact(ctx, settings.idleSeconds);
+				if (launched) awaitingCompletion = launched;
 			} catch {
 				// The runner went away (session replaced/shutdown) before the timer fired.
 			}
@@ -169,7 +177,24 @@ export default function (pi: ExtensionAPI) {
 
 	// Session start, tree navigation, and shutdown are intentional user choices
 	// about context: they cancel a pending compaction but never start the clock.
-	pi.on("session_start", () => disarm());
+	pi.on("session_start", () => {
+		disarm();
+		awaitingCompletion = undefined; // a pending idle compaction cannot complete in a new session
+	});
 	pi.on("session_tree", () => disarm());
-	pi.on("session_shutdown", () => disarm());
+	pi.on("session_shutdown", () => {
+		disarm();
+		awaitingCompletion = undefined;
+	});
+
+	// The compaction entry has landed. Fires for every mode — the built-in
+	// summarizer and the dance's summary turn alike — so this is the notice
+	// the user sees when they return; the pre-compaction one is already
+	// buried under the summary turn by then.
+	pi.on("session_compact", (_event, ctx) => {
+		if (awaitingCompletion === undefined) return;
+		const mode = awaitingCompletion;
+		awaitingCompletion = undefined;
+		if (ctx.hasUI) ctx.ui.notify(`Idle compaction complete (mode: ${mode}).`, "info");
+	});
 }
