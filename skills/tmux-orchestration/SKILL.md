@@ -35,6 +35,7 @@ tmux kill-session -t <name>```
 - **Poll for boot, don't sleep.** Bash and pi launch quickly. Poll `tmux capture-pane` every 3 seconds for the shell prompt, 🔥 or $PS1 in ~/.bashrc, or pi version string (`pi v`). Never `sleep 60` or `sleep 90` waiting for boot — that wastes context and risks abort.
 - **Poll actively.** Check panes every 30-60s during generation. If an agent is stuck or going off track, send a correction — don't wait for it to finish wrong.
 - **Use `C-m`, never `Enter`.** `C-m` is cross-platform stable. If tmux extended-keys is off it will fail, you can then test with `tmux show -gv extended-keys` and use the Enter fallback below. Inform the user of tmux send-keys exceptions before continuing.
+- **macOS: `C-m` can silently fail to submit even with `extended-keys` ON.** Observed on a Mac (tmux `extended-keys on`): `tmux send-keys -t pane "<task>" C-m` typed the text into pi's input box but the Enter never registered — the prompt sat unsubmitted while the token counter stayed at `0.0%`. The `extended-keys` value does NOT reliably predict this. **Always verify the prompt actually submitted** (the text moves from the input box up into the transcript above the status bar, and the counter starts moving) before assuming it's in flight. If it didn't submit, send a bare `C-m` (or `Enter`) as a separate call to fire the already-typed text. When in doubt on macOS, prefer the two-call pattern (text, then Enter) from the fallback below.
 
 
 ### Enter Fallback (when extended-keys is off)

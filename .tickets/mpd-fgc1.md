@@ -1,6 +1,7 @@
 ---
 id: mpd-fgc1
 status: open
+open: true
 deps: []
 links: []
 created: 2026-08-10T05:43:18Z

@@ -1,6 +1,7 @@
 ---
 id: mpd-7d8i
 status: closed
+open: false
 deps: []
 links: []
 created: 2026-08-10T00:06:43Z

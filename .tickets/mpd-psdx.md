@@ -1,6 +1,7 @@
 ---
 id: mpd-psdx
 status: open
+open: true
 deps: []
 links: []
 created: 2026-08-12T12:24:24Z

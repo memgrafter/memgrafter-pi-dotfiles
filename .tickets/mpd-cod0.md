@@ -1,6 +1,7 @@
 ---
 id: mpd-cod0
 status: open
+open: true
 deps: []
 links: [mpd-sr7t]
 created: 2026-08-14T13:36:21Z

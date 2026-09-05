@@ -1,6 +1,7 @@
 ---
 id: mpd-b1is
 status: open
+open: true
 deps: []
 links: []
 created: 2026-08-11T21:37:36Z

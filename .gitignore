@@ -4,5 +4,6 @@ node_modules/
 .claude/
 skills-lock.json
 .DS_Store
+.multiloop
 
 extensions/tests/compaction/live/runs/

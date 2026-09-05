@@ -1,6 +1,7 @@
 ---
 id: mpd-mh7l
 status: open
+open: true
 deps: []
 links: []
 created: 2026-08-11T13:44:15Z

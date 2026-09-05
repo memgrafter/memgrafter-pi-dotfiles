@@ -1,6 +1,7 @@
 ---
 id: mpd-bulr
 status: closed
+open: false
 deps: []
 links: []
 created: 2026-07-28T18:35:49Z

@@ -1,6 +1,7 @@
 ---
 id: mpd-1kl2
 status: open
+open: true
 deps: []
 links: [mpd-sr7t]
 created: 2026-08-12T23:30:05Z

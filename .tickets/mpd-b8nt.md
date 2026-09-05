@@ -1,6 +1,7 @@
 ---
 id: mpd-b8nt
 status: closed
+open: false
 deps: []
 links: [mpd-sr7t]
 created: 2026-08-12T22:48:09Z

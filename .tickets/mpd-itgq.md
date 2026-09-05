@@ -1,6 +1,7 @@
 ---
 id: mpd-itgq
 status: open
+open: true
 deps: []
 links: [mpd-9kvy]
 created: 2026-08-11T17:24:54Z

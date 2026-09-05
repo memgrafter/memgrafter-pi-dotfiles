@@ -1,6 +1,7 @@
 ---
 id: mpd-o3ky
 status: open
+open: true
 deps: []
 links: []
 created: 2026-08-12T02:56:01Z

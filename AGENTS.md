@@ -145,9 +145,11 @@ kr('registry', 'delete', 'auth-knowledge')
 - Use examples over prose when possible — a runnable example teaches faster.
 - Match the repo's existing documentation voice: if its docs are terse bullets, keep additions terse — no long-form prose, blockquotes, or citations where a line or two suffices.
 
-## Parallel Agent Orchestration (tmux)
+## "Pi Agent" Orchestration (tmux)
 
-Delegate independent work to `pi` agents in separate tmux windows. Full guide: use the **tmux-orchestration** skill — [skills/tmux-orchestration/SKILL.md](skills/tmux-orchestration/SKILL.md).
+Delegate independent work to "pi agents" in separate tmux windows after reading the "tmux orchestration" skill.
+
+Full guide: use the **tmux-orchestration** skill — [skills/tmux-orchestration/SKILL.md](skills/tmux-orchestration/SKILL.md).
 
 ## Preferred Shell Tools
 
