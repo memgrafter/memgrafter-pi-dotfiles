@@ -106,6 +106,12 @@ const thinkSchema = Type.Object({
 				"Names what you are doing so the tool trace is auditable. Canonical kinds: plan, react, diagnose, decide, verify — or name your own.",
 		}),
 	),
+	format: Type.Optional(
+		Type.String({
+			description:
+				"Thinking format that structures your reasoning: table (decisions), pseudocode (plans), trace (diagnosis). Read the thinking-formats skill before setting this. The format is the first line of your reasoning, prefixed with 'format: '.",
+		}),
+	),
 });
 
 // ── Tool ────────────────────────────────────────────────────────────────────
@@ -115,11 +121,12 @@ function createThinkTool(): ToolDefinition {
 		name: "think",
 		label: "Think",
 		promptSnippet:
-			"Write reasoning into a scratchpad that is recorded in your tool history. Use it before a hard or surprising step; it stays visible to you in context. `level` and `kind` are no-op tags echoed back in the result.",
+			"Write reasoning into a scratchpad that is recorded in your tool history. Use it while planning and before starting changes; it stays visible to you in context. `level`, `kind`, and `format` are no-op tags echoed back in the result.",
 		description:
-			"Think: a scratchpad you write your reasoning into. What you put here is output text that is recorded in the tool history and stays visible to you later in your own tool-trace context — use it to work out a step before acting. Call it before a hard or surprising step: a tool returned unexpected output, a new sub-problem appeared, or a non-trivial decision is needed. For a deterministic step, do not overthink — a short note or none at all is fine. " +
+			"Think: a scratchpad you write your reasoning into. What you put here is output text that is recorded in the tool history and stays visible to you later in your own tool-trace context — use it to work out a step before acting. Call it while planning and before starting changes: a new sub-problem appeared, a non-trivial decision is needed, or a tool returned unexpected output. For a deterministic step, do not overthink — a short note or none at all is fine. " +
 			"`level` is a no-op reminder (thinking effort is controlled by the harness, not this tool): name the effort you want for the next step — minimal, low, medium, high, xhigh, maximum — and it is echoed back. " +
-			"`kind` is a no-op tag, echoed back only, that names what you are doing: plan, react, diagnose, decide, verify, or name your own.",
+			"`kind` is a no-op tag, echoed back only, that names what you are doing: plan, react, diagnose, decide, verify, or name your own. " +
+			"`format` structures your reasoning: table (decisions), pseudocode (plans), trace (diagnosis). Read the thinking-formats skill before setting this.",
 		parameters: thinkSchema,
 		renderCall(args: Static<typeof thinkSchema>, theme: Theme, context: ToolRenderContext) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
@@ -127,6 +134,7 @@ function createThinkTool(): ToolDefinition {
 			const tags: string[] = [];
 			if (args.kind) tags.push(`kind: ${args.kind}`);
 			if (args.level) tags.push(`level: ${args.level}`);
+			if (args.format) tags.push(`format: ${args.format}`);
 			const line = `[think${tags.length ? " · " + tags.join(" · ") : ""}] ${reasoning}`;
 			text.setText(theme.fg("toolTitle", theme.bold(line)));
 			return text;
@@ -150,6 +158,7 @@ function createThinkTool(): ToolDefinition {
 				details: {
 					kind: params.kind,
 					level: params.level,
+					format: params.format,
 					reasoning: params.reasoning,
 				},
 			};
@@ -170,8 +179,10 @@ export default function (pi: ExtensionAPI): void {
 
 	function setThinkActive(ctx: ExtensionContext, enabled: boolean): void {
 		const tools = pi.getActiveTools();
-		const next = enabled ? (tools.includes("think") ? tools : [...tools, "think"]) : tools.filter((t) => t !== "think");
-		if (next.length !== tools.length || next.some((t, i) => t !== tools[i])) pi.setActiveTools(next);
+		const hasThink = tools.includes("think");
+		if (hasThink === enabled) return; // no change
+		const next = enabled ? [...tools, "think"] : tools.filter((t) => t !== "think");
+		pi.setActiveTools(next);
 		if (ctx.hasUI) ctx.ui.notify(`think tool ${enabled ? "enabled" : "disabled"} for this session.`, "info");
 	}
 
