@@ -1,7 +1,7 @@
 ---
 id: mpd-xxrz
-status: in_progress
-open: true
+status: closed
+open: false
 deps: []
 links: []
 created: 2026-09-06T01:11:39Z
@@ -44,3 +44,7 @@ Decisions locked: /think-tool on|off persist to settings (project .pi/settings.j
 **2026-09-06T01:16:16Z**
 
 Implemented in extensions/think-tool.ts: settings section 'think-tool' (key think_tool) resolved project->global->default(off); /think-tool [on|off|status] command (on/off persist to settings via getSettingsPathToUpdate, and activate/deactivate via setActiveTools); --think_tool flag is a one-off session-only OR into session_start activation and never writes settings. Verified via jiti load + command-handler tests covering project/global/default/flag/bad-arg.
+
+**2026-09-06T01:53:28Z**
+
+Done: implemented, committed (192e039), pushed, and user-verified (sticky setting, dynamic activation). Closing.
