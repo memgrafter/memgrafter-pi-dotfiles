@@ -62,7 +62,7 @@ function createThinkTool(): ToolDefinition {
 		parameters: thinkSchema,
 		renderCall(args: Static<typeof thinkSchema>, theme: Theme, context: ToolRenderContext) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			const reasoning = args.reasoning ? args.reasoning.split("\n").slice(0, 1).join(" ") : "";
+			const reasoning = args.reasoning ?? "";
 			const tags: string[] = [];
 			if (args.kind) tags.push(`kind: ${args.kind}`);
 			if (args.level) tags.push(`level: ${args.level}`);
