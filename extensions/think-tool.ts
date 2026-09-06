@@ -121,11 +121,11 @@ function createThinkTool(): ToolDefinition {
 		name: "think",
 		label: "Think",
 		promptSnippet:
-			"Write reasoning into a scratchpad that is recorded in your tool history. Use it while planning and before starting changes; it stays visible to you in context. `level`, `kind`, and `format` are no-op tags echoed back in the result.",
+			"Write reasoning into a scratchpad that is recorded in your tool history. Use it while planning and before starting changes; it stays visible to you in context. `level`, `kind`, and `format` provide auditibility and accountability.",
 		description:
 			"Think: a scratchpad you write your reasoning into. What you put here is output text that is recorded in the tool history and stays visible to you later in your own tool-trace context — use it to work out a step before acting. Call it while planning and before starting changes: a new sub-problem appeared, a non-trivial decision is needed, or a tool returned unexpected output. For a deterministic step, do not overthink — a short note or none at all is fine. " +
-			"`level` is a no-op reminder (thinking effort is controlled by the harness, not this tool): name the effort you want for the next step — minimal, low, medium, high, xhigh, maximum — and it is echoed back. " +
-			"`kind` is a no-op tag, echoed back only, that names what you are doing: plan, react, diagnose, decide, verify, or name your own. " +
+			"`level` is a reminder: name the effort you want for the next step — minimal, low, medium, high, xhigh, maximum." +
+			"`kind` is a tag that names what you are doing: plan, react, diagnose, decide, verify, or name your own. " +
 			"`format` structures your reasoning: table (decisions), pseudocode (plans), trace (diagnosis). Read the thinking-formats skill before setting this.",
 		parameters: thinkSchema,
 		renderCall(args: Static<typeof thinkSchema>, theme: Theme, context: ToolRenderContext) {
