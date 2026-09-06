@@ -84,15 +84,8 @@ function createThinkTool(): ToolDefinition {
 			_onUpdate,
 			_ctx: ExtensionContext,
 		): Promise<AgentToolResult<Record<string, any>>> {
-			const parts: string[] = ["Recorded think tool. It is available in the session tool history."];
-			const tags: string[] = [];
-			if (params.kind) tags.push(`kind: ${params.kind}`);
-			if (params.level) tags.push(`level: ${params.level}`);
-			if (tags.length) {
-				parts.push(`(tags: ${tags.join(", ")})`);
-			}
 			return {
-				content: [{ type: "text", text: parts.join(" ") }],
+				content: [{ type: "text", text: "Success." }],
 				details: {
 					kind: params.kind,
 					level: params.level,
