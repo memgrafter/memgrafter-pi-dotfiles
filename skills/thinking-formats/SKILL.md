@@ -1,9 +1,15 @@
 ---
 name: thinking-formats
-description: Select the right thinking format before you call think. Table for decisions, pseudocode for plans, trace for diagnosis. The format constrains how you structure reasoning, not what you think.
+description: Stops you from reasoning in the wrong structure. Wrong format costs 15pp on code tasks; right format is worth 17pp. Makes your decisions, plans, and diagnoses auditable in the tool trace.
 ---
 
 Pick a format, think in it, commit. The format is the structure, not the content.
+
+## Why use it
+
+- **Prevents the 15pp failure.** Reasoning in the wrong structure actively hurts: CoT degrades code quality by 15pp. The format forces you to match structure to task before you start.
+- **Makes your reasoning re-readable.** A table shows which option you picked and why. Pseudocode shows which steps you planned. A trace shows the exact line where state diverged. Freeform prose hides all three, and you can't re-read a hidden decision on the next turn.
+- **Stops you when you're done.** The trace format has an explicit termination condition (expected == actual). Unstructured reasoning keeps "verifying" correct answers and wastes tokens.
 
 ## When to use
 
@@ -152,3 +158,9 @@ think(reasoning: "format: trace\nbug: ...\nbefore: ...\nop: ...\ndivergence: ...
 ```
 
 `kind` and `format` are independent. `trace` format with `kind: verify` (confirm the fix). `table` format with `kind: react` (tool returned 3 possible causes; table them before tracing one).
+
+## Output
+
+`Success.` The reasoning text stays in your tool history where you can re-read it on the next turn. No state change, no side effects.
+
+Cost: one line in the think call (`format: X`) and the discipline of following the structure. Benefit: reasoning that's structured, auditable, matched to the task, and re-readable.
