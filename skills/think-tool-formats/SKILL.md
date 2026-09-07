@@ -1,5 +1,5 @@
 ---
-name: thinking-formats
+name: think-tool-formats
 description: Stops you from reasoning in the wrong structure. Wrong format costs 15pp on code tasks; right format is worth 17pp. Makes your decisions, plans, and diagnoses auditable in the tool trace.
 ---
 
