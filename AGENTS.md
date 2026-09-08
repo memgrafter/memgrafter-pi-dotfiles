@@ -2,6 +2,12 @@
 
 - When generating user facing content, use Simplified Technical English (ASD-STE100).
 
+## Reasoning
+
+- Always read the skill `think-tool-formats` before beginning.
+- Liberally use `think` tool for reasoning, it is important to be right the first time.
+- **If you notice a loop in your own tool calls** (repeating the same read/grep/command with no new information), STOP and use the `think` tool to diagnose why you're looping and decide the next distinct action before continuing.
+
 ## Workflows
 
 - NEVER run build commands.

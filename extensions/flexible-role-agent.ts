@@ -24,6 +24,7 @@
  *   pi -e ./extensions/flexible-role-agent.ts
  *   --frag                 start with frag mode enabled (default role)
  *   --coding               start in the coding-agent role
+ *   --instruct             start in the instruct role (coding agent + repl/think/reasoning-skill guidelines)
  *   --pkm                  start in the pkm role
  *   --cbt                  start in the cbt role
  *   --dp                   start in the dp role
@@ -96,6 +97,9 @@ You can ask me questions to clarify constraints, evaluate outcomes, and adapt th
 Focus on specificity, repetition with feedback, and measurable progress over time.
 Do not write code unless I explicitly ask you to.`;
 
+/** Coding agent role with structured-reasoning guidelines appended. */
+const INSTRUCT_ROLE = `${CODING_AGENT_ROLE}\n\nPrefer the repl tool with python over bash or ad hoc scripts. Use think tool liberally before other tools, between tool calls, and before responses. Before beginning, read the structured reasoning skill: 'think-tool-formats'.`;
+
 /** Socratic tutor role. */
 const SOCRATIC_TUTOR_ROLE = `You are an expert Socratic tutor.
 Your goal is to help me learn by guiding me through questions and reflection.
@@ -146,6 +150,12 @@ const ROLES: RoleDefinition[] = [
 		prompt: DP_ROLE,
 	},
 	{
+		id: "instruct",
+		label: "instruct",
+		description: "Coding agent + repl/think/reasoning-skill guidelines",
+		prompt: INSTRUCT_ROLE,
+	},
+	{
 		id: "socratic-tutor",
 		label: "socratic-tutor",
 		description: "Socratic tutor",
@@ -165,6 +175,7 @@ function roleLabel(id: string): string {
 /** Launch flags that start frag mode with a specific role. */
 const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
 	{ flag: "coding", roleId: "coding-agent" },
+	{ flag: "instruct", roleId: "instruct" },
 	{ flag: "pkm", roleId: "pkm" },
 	{ flag: "cbt", roleId: "cbt" },
 	{ flag: "dp", roleId: "dp" },
