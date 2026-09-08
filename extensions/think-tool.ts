@@ -5,7 +5,7 @@ import type { ExtensionAPI, ExtensionCommandContext, ToolDefinition, AgentToolRe
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import type { ToolRenderContext } from "@earendil-works/pi-coding-agent/core/extensions/types";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import { Text } from "@earendil-works/pi-tui";
+import { Box, Spacer, Text } from "@earendil-works/pi-tui";
 import type { Component } from "@earendil-works/pi-tui";
 import { Type, Static } from "typebox";
 
@@ -116,6 +116,26 @@ const thinkSchema = Type.Object({
 
 // ── Tool ────────────────────────────────────────────────────────────────────
 
+/**
+ * Format the reasoning body for display: the leading `format: <name>` line is
+ * shown muted on its own line, the rest of the reasoning is indented two
+ * spaces. Re-formatted on every render tick, so it formats live while the LLM
+ * streams the argument (the Text component wraps ANSI-safe at render time).
+ */
+function formatThinkBody(reasoning: string, theme: Theme): string {
+	const lines = reasoning.split("\n");
+	const first = lines[0] ?? "";
+	const rest = lines.slice(1).join("\n");
+	const body: string[] = [];
+	if (/^format:\s*\S/.test(first)) {
+		body.push(theme.fg("muted", first));
+	}
+	if (rest.trim().length > 0) {
+		body.push(rest.replace(/^/gm, "  "));
+	}
+	return body.join("\n");
+}
+
 function createThinkTool(): ToolDefinition {
 	return {
 		name: "think",
@@ -129,15 +149,34 @@ function createThinkTool(): ToolDefinition {
 			"`format` structures your reasoning: table (decisions), pseudocode (plans), trace (diagnosis). Read the thinking-formats skill before setting this.",
 		parameters: thinkSchema,
 		renderCall(args: Static<typeof thinkSchema>, theme: Theme, context: ToolRenderContext) {
-			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
-			const reasoning = args.reasoning ?? "";
+			// Reuse the row's components across stream ticks: the header line is
+			// the params, a blank line, then the formatted reasoning body. renderCall
+			// is invoked on every redraw with the (possibly partial) args, so the
+			// body formats live while the LLM streams it.
 			const tags: string[] = [];
 			if (args.kind) tags.push(`kind: ${args.kind}`);
 			if (args.level) tags.push(`level: ${args.level}`);
 			if (args.format) tags.push(`format: ${args.format}`);
-			const line = `[think${tags.length ? " · " + tags.join(" · ") : ""}] ${reasoning}`;
-			text.setText(theme.fg("toolTitle", theme.bold(line)));
-			return text;
+			const header = theme.fg("toolTitle", theme.bold(`[think${tags.length ? " · " + tags.join(" · ") : ""}]`));
+			const body = formatThinkBody(args.reasoning ?? "", theme);
+
+			const box = (context.lastComponent as Box | undefined) ?? new Box(0, 0);
+			const headerText = (context.state.headerText as Text | undefined) ?? new Text("", 0, 0);
+			const spacer = (context.state.spacer as Spacer | undefined) ?? new Spacer(1);
+			const bodyText = (context.state.bodyText as Text | undefined) ?? new Text("", 0, 0);
+			context.state.headerText = headerText;
+			context.state.spacer = spacer;
+			context.state.bodyText = bodyText;
+
+			headerText.setText(header);
+			bodyText.setText(body);
+			box.clear();
+			box.addChild(headerText);
+			if (body.length > 0) {
+				box.addChild(spacer);
+				box.addChild(bodyText);
+			}
+			return box;
 		},
 		renderResult(result: AgentToolResult<any>, options: { expanded: boolean; isPartial: boolean }, theme: Theme, context: ToolRenderContext) {
 			const text = (context.lastComponent as Text | undefined) ?? new Text("", 0, 0);
