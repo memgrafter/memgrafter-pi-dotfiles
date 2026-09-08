@@ -1055,6 +1055,13 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		);
 	});
 
+	// Compaction replaces the history with a summary entry, dropping the
+	// [role: <id>] message from the live context. Reset the tracker so the
+	// next before_agent_start re-injects the active role.
+	pi.on("session_compact", () => {
+		lastInjectedRole = undefined;
+	});
+
 	pi.on("before_agent_start", async (event) => {
 		if (!state.enabled && !state.trim && !state.notools) {
 			return undefined;
