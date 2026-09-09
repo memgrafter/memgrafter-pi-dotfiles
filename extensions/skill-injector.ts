@@ -137,10 +137,14 @@ export default function (pi: ExtensionAPI): void {
 	const state: SkillInjectConfig = { enabled: false, skills: [] };
 	/** True once the configured skills have been injected into the live context. */
 	let injected = false;
-
-	function availableSkills(ctx: ExtensionContext): SkillRef[] {
-		return (ctx.getSystemPromptOptions().skills ?? []) as SkillRef[];
-	}
+	/**
+	 * Skill registry snapshot. pi 0.85.x event contexts do not expose
+	 * getSystemPromptOptions (command contexts do), so the registry is captured
+	 * from before_agent_start's event.systemPromptOptions and refreshed on
+	 * session_start (reload) via a one-shot pendingRefresh flag.
+	 */
+	let available: SkillRef[] = [];
+	let pendingRefresh = false;
 
 	function updateStatus(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
@@ -156,7 +160,6 @@ export default function (pi: ExtensionAPI): void {
 	 */
 	function buildInjection(ctx: ExtensionContext): { customType: string; content: string; details: { skills: string[] }; display: boolean } | undefined {
 		if (!state.enabled || state.skills.length === 0) return undefined;
-		const available = availableSkills(ctx);
 		const blocks: string[] = [];
 		const injectedNames: string[] = [];
 		for (const name of state.skills) {
@@ -193,18 +196,44 @@ export default function (pi: ExtensionAPI): void {
 		return box;
 	});
 
+	// Command contexts expose getSystemPromptOptions in 0.85.x; event contexts
+	// do not. Prefer the live call, fall back to the captured snapshot.
+	function commandAvailableSkills(ctx: ExtensionCommandContext): SkillRef[] {
+		try {
+			const live = (ctx.getSystemPromptOptions?.() as { skills?: SkillRef[] } | undefined)?.skills;
+			if (live) return live;
+		} catch {
+			// fall through to snapshot
+		}
+		return available;
+	}
+
+	// Capture the skill registry on the first prompt of the session (and after
+	// a reload, which re-fires session_start with a fresh resource loader).
+	// before_agent_start always fires before the first session_compact, so the
+	// snapshot is populated before any injection needs it.
+	function refreshRegistry(event: { systemPromptOptions?: { skills?: SkillRef[] } }): void {
+		if (!pendingRefresh) return;
+		const skills = event.systemPromptOptions?.skills;
+		if (skills) {
+			available = skills as SkillRef[];
+			pendingRefresh = false;
+		}
+	}
+
 	pi.on("session_start", (_event, ctx) => {
 		const config = resolveConfig(ctx.cwd);
 		state.enabled = config.enabled;
 		state.skills = config.skills;
 		injected = false;
+		pendingRefresh = true;
 
-		if (state.enabled && state.skills.length > 0 && ctx.hasUI) {
-			const available = availableSkills(ctx).map((s) => s.name);
-			const unknown = state.skills.filter((name) => !available.includes(name));
+		if (state.enabled && state.skills.length > 0 && ctx.hasUI && available.length > 0) {
+			const names = available.map((s) => s.name);
+			const unknown = state.skills.filter((name) => !names.includes(name));
 			if (unknown.length > 0) {
 				ctx.ui.notify(
-					`skill-inject: unknown skill name(s): ${unknown.join(", ")}. Available: ${available.join(", ") || "(none)"}`,
+					`skill-inject: unknown skill name(s): ${unknown.join(", ")}. Available: ${names.join(", ") || "(none)"}`,
 					"warning",
 				);
 			}
@@ -212,7 +241,8 @@ export default function (pi: ExtensionAPI): void {
 		updateStatus(ctx);
 	});
 
-	pi.on("before_agent_start", async (_event, ctx) => {
+	pi.on("before_agent_start", async (event, ctx) => {
+		refreshRegistry(event);
 		if (!state.enabled || injected) return undefined;
 		const message = buildInjection(ctx);
 		if (!message) return undefined;
@@ -268,9 +298,9 @@ export default function (pi: ExtensionAPI): void {
 						ctx.ui.notify("Usage: /skill-inject add <name>", "warning");
 						return;
 					}
-					const available = availableSkills(ctx).map((s) => s.name);
-					if (!available.includes(arg)) {
-						ctx.ui.notify(`Unknown skill '${arg}'. Available: ${available.join(", ") || "(none)"}`, "warning");
+					const names = commandAvailableSkills(ctx).map((s) => s.name);
+					if (!names.includes(arg)) {
+						ctx.ui.notify(`Unknown skill '${arg}'. Available: ${names.join(", ") || "(none)"}`, "warning");
 						return;
 					}
 					if (state.skills.includes(arg)) {
@@ -300,8 +330,8 @@ export default function (pi: ExtensionAPI): void {
 					return;
 				}
 				case "list": {
-					const available = availableSkills(ctx).map((s) => s.name);
-					ctx.ui.notify(`Available skills: ${available.join(", ") || "(none)"}`, "info");
+					const names = commandAvailableSkills(ctx).map((s) => s.name);
+					ctx.ui.notify(`Available skills: ${names.join(", ") || "(none)"}`, "info");
 					return;
 				}
 				default:
