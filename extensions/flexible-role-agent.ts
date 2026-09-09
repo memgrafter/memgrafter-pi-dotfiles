@@ -151,7 +151,7 @@ const ROLES: RoleDefinition[] = [
 	},
 	{
 		id: "instruct",
-		label: "instruct-coding",
+		label: "instruct",
 		description: "Coding agent + repl/think/reasoning-skill guidelines",
 		prompt: INSTRUCT_ROLE,
 	},
@@ -166,6 +166,10 @@ const ROLES: RoleDefinition[] = [
 function getRole(id: string): RoleDefinition | undefined {
 	const normalized = id.trim().toLowerCase();
 	return ROLES.find((role) => role.id === normalized);
+}
+
+function roleLabel(id: string): string {
+	return getRole(id)?.label ?? id;
 }
 
 /** Launch flags that start frag mode with a specific role. */
@@ -200,17 +204,8 @@ const PI_ROLE_SENTENCE = `You are an expert coding assistant operating inside pi
 const FRAG_MARKER = "flexible-role agent";
 const ROLE_HEADER_PATTERN = /\[role: ([a-z0-9-]+)\]/;
 
-/** Display labels that differ from the role id. */
-const ROLE_LABELS: Record<string, string> = {
-	instruct: "instruct-coding",
-};
-
-function roleLabel(id: string): string {
-	return ROLE_LABELS[id] ?? id;
-}
-
 function roleHeader(roleId: string): string {
-	return `[role: ${roleLabel(roleId)}]`;
+	return `[role: ${roleId}]`;
 }
 
 /**
@@ -481,12 +476,8 @@ function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManag
 							.join("")
 					: "";
 		const headerMatch = text.match(ROLE_HEADER_PATTERN);
-		if (headerMatch) {
-			const byLabel = ROLES.find((role) => role.label === headerMatch[1]);
-			const byId = getRole(headerMatch[1]!);
-			if (byLabel || byId) {
-				return (byLabel ?? byId)!.id;
-			}
+		if (headerMatch && getRole(headerMatch[1]!)) {
+			return headerMatch[1]!;
 		}
 		for (const role of ROLES) {
 			if (text.includes(`System:\n${role.prompt}`)) {
@@ -643,8 +634,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		const headerMatch = content.match(/^\[role: ([a-z0-9-]+)\]\n\n/);
 		const roleId =
 			(typeof details?.role === "string" ? details.role : undefined) ??
-			ROLES.find((role) => role.label === headerMatch?.[1])?.id ??
-			ROLES.find((role) => role.id === headerMatch?.[1])?.id ??
+			headerMatch?.[1] ??
 			ROLES.find((role) => content.includes(`System:\n${role.prompt}`))?.id;
 		const body = headerMatch ? content.slice(headerMatch[0].length) : content;
 		const header = roleId ? roleHeader(roleId) : `[${FRAG_ROLE_MESSAGE_TYPE}]`;
