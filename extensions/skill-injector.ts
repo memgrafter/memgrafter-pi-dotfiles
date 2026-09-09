@@ -38,7 +38,6 @@ import { Box, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
 import { getMarkdownTheme, stripFrontmatter } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteItem } from "@earendil-works/pi-tui";
-import type { Theme } from "@earendil-works/pi-coding-agent";
 
 // ============================================================================
 // Settings persistence (optional "skill-inject" key in settings.json)
@@ -431,14 +430,20 @@ export default function (pi: ExtensionAPI): void {
 		},
 	});
 
-	// Render the injected skill blocks as a compact box: header + markdown body.
-	pi.registerMessageRenderer("skill-inject", (message, _ctx, _theme: Theme) => {
+	// Render the injected skill blocks like the default custom-message styling:
+	// background box, bold label header, markdown body. (A plain Text component
+	// cannot take a markdown theme — it renders raw markdown and can emit
+	// undefined screen lines that crash the TUI render pass.)
+	pi.registerMessageRenderer(SKILL_INJECT_TYPE, (message, _options, theme) => {
+		const details = message.details as { skills?: unknown } | undefined;
+		const names = Array.isArray(details?.skills) ? (details!.skills as string[]).join(", ") : "";
 		const content = typeof message.content === "string" ? message.content : "";
-		const names = [...content.matchAll(/<skill name="([^"]+)"/g)].map((m) => m[1]);
-		const box = new Box(0, 0, (c: Theme) => c.accentBlue);
-		box.addChild(new Text(`[skill: ${names.join(", ")}]`, 0, 0, (c: Theme) => c.accentBlue));
+		const box = new Box(1, 1, (t) => theme.bg("customMessageBg", t));
+		box.addChild(new Text(theme.fg("customMessageLabel", `\x1b[1m[skill: ${names || "inject"}]\x1b[22m`), 0, 0));
 		box.addChild(new Spacer(1));
-		box.addChild(new Text(content, 0, 0, (c: Theme) => c.text, getMarkdownTheme()));
+		box.addChild(new Markdown(content, 0, 0, getMarkdownTheme(), {
+			color: (text) => theme.fg("customMessageText", text),
+		}));
 		return box;
 	});
 }
