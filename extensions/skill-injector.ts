@@ -175,14 +175,42 @@ export default function (pi: ExtensionAPI): void {
 	}
 
 	/**
-	 * Scan session history (reverse) for skill blocks from any source: our
+	 * Entries that are actually in the live LLM context, mirroring pi's
+	 * buildContextEntries: with a compaction on the path, only the compaction
+	 * entry, entries from firstKeptEntryId (inclusive) before it, and all
+	 * entries after it are live. Older summarized entries are out of context,
+	 * so skill blocks in them must not suppress re-injection.
+	 */
+	function liveContextEntries(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): typeof entries {
+		let compactionIdx = -1;
+		for (let index = entries.length - 1; index >= 0; index--) {
+			if ((entries[index] as { type?: string }).type === "compaction") {
+				compactionIdx = index;
+				break;
+			}
+		}
+		if (compactionIdx < 0) return entries;
+		const firstKeptId = (entries[compactionIdx] as { firstKeptEntryId?: unknown }).firstKeptEntryId;
+		const kept: typeof entries = [];
+		let foundFirstKept = false;
+		for (let index = 0; index < compactionIdx; index++) {
+			if ((entries[index] as { id?: string }).id === firstKeptId) foundFirstKept = true;
+			if (foundFirstKept) kept.push(entries[index]);
+		}
+		kept.push(...entries.slice(compactionIdx + 1));
+		return kept;
+	}
+
+	/**
+	 * Scan live session history (reverse) for skill blocks from any source: our
 	 * skill-inject custom messages (details.skills fast path, content fallback)
 	 * and /skill:name user messages. Returns the union of names present.
 	 */
 	function scanInjectedSkills(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): string[] {
+		const live = liveContextEntries(entries);
 		const found = new Set<string>();
-		for (let index = entries.length - 1; index >= 0; index--) {
-			const entry = entries[index] as { type?: string; customType?: string; details?: unknown; message?: { role?: string; content?: unknown } };
+		for (let index = live.length - 1; index >= 0; index--) {
+			const entry = live[index] as { type?: string; customType?: string; details?: unknown; message?: { role?: string; content?: unknown } };
 			if (entry.type === "custom_message" && entry.customType === SKILL_INJECT_TYPE) {
 				const details = entry.details as { skills?: unknown } | undefined;
 				if (Array.isArray(details?.skills)) {
