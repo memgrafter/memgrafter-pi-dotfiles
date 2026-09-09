@@ -24,7 +24,7 @@
  *   pi -e ./extensions/flexible-role-agent.ts
  *   --frag                 start with frag mode enabled (default role)
  *   --coding               start in the coding-agent role
- *   --instruct             start in the instruct role (coding agent + repl/think/reasoning-skill guidelines)
+ *   --instruct-coding      start in the instruct-coding role (coding agent + repl/think/reasoning-skill guidelines)
  *   --pkm                  start in the pkm role
  *   --cbt                  start in the cbt role
  *   --dp                   start in the dp role
@@ -150,8 +150,8 @@ const ROLES: RoleDefinition[] = [
 		prompt: DP_ROLE,
 	},
 	{
-		id: "instruct",
-		label: "instruct",
+		id: "instruct-coding",
+		label: "instruct-coding",
 		description: "Coding agent + repl/think/reasoning-skill guidelines",
 		prompt: INSTRUCT_ROLE,
 	},
@@ -175,7 +175,7 @@ function roleLabel(id: string): string {
 /** Launch flags that start frag mode with a specific role. */
 const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
 	{ flag: "coding", roleId: "coding-agent" },
-	{ flag: "instruct", roleId: "instruct" },
+	{ flag: "instruct-coding", roleId: "instruct-coding" },
 	{ flag: "pkm", roleId: "pkm" },
 	{ flag: "cbt", roleId: "cbt" },
 	{ flag: "dp", roleId: "dp" },
