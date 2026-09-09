@@ -402,4 +402,15 @@ export default function (pi: ExtensionAPI): void {
 			}
 		},
 	});
+
+	// Render the injected skill blocks as a compact box: header + markdown body.
+	pi.registerMessageRenderer("skill-inject", (message, _ctx, _theme: Theme) => {
+		const content = typeof message.content === "string" ? message.content : "";
+		const names = [...content.matchAll(/<skill name="([^"]+)"/g)].map((m) => m[1]);
+		const box = new Box(0, 0, (c: Theme) => c.accentBlue);
+		box.addChild(new Text(`[skill: ${names.join(", ")}]`, 0, 0, (c: Theme) => c.accentBlue));
+		box.addChild(new Spacer(1));
+		box.addChild(new Text(content, 0, 0, (c: Theme) => c.text, getMarkdownTheme()));
+		return box;
+	});
 }
