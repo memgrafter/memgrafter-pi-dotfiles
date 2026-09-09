@@ -1,3 +1,14 @@
+// Tool trace behavior: the programmatic "Ordered Tool Trace" covers only the
+// current segment (entries after the latest compaction entry, including the
+// kept-recent messages). It is not cumulative: tool calls from before the last
+// compaction are not re-emitted, and the previous compaction's trace text is
+// never re-parsed. Each compaction's trace is a fresh snapshot.
+//
+// FileOps behavior: the cached/dance modes' <read-files>/<modified-files> lists
+// ARE cumulative. Pi's prepareCompaction merges the previous compaction's
+// details.readFiles/modifiedFiles into fileOps, so the lists grow across
+// compactions (reads stay until the file is modified/written).
+
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
