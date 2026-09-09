@@ -119,11 +119,15 @@ const thinkSchema = Type.Object({
 /**
  * Format the reasoning body for display: the leading `format: <name>` line is
  * shown muted on its own line, the rest of the reasoning is indented two
- * spaces. Re-formatted on every render tick, so it formats live while the LLM
- * streams the argument (the Text component wraps ANSI-safe at render time).
+ * spaces. Some models emit literal two-character `\n`/`\t` sequences inside
+ * the tool-call string instead of real control characters; normalize them for
+ * display only — the session file and the model's context keep the raw text.
+ * Re-formatted on every render tick, so it formats live while the LLM streams
+ * the argument (the Text component wraps ANSI-safe at render time).
  */
 function formatThinkBody(reasoning: string, theme: Theme): string {
-	const lines = reasoning.split("\n");
+	const normalized = reasoning.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
+	const lines = normalized.split("\n");
 	const first = lines[0] ?? "";
 	const rest = lines.slice(1).join("\n");
 	const body: string[] = [];
