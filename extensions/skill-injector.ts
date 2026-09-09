@@ -111,6 +111,9 @@ function writeConfig(cwd: string, patch: Partial<SkillInjectConfig>): void {
 
 const SKILL_INJECT_TYPE = "skill-inject";
 
+/** Matches the skill block header pi writes for /skill:name and for our injections. */
+const SKILL_BLOCK_NAME_PATTERN = /<skill name="([a-z0-9-]+)"/g;
+
 /** Minimal skill shape as reported in systemPromptOptions.skills. */
 interface SkillRef {
 	name: string;
@@ -135,8 +138,13 @@ function expandSkillBody(skill: SkillRef): string {
 
 export default function (pi: ExtensionAPI): void {
 	const state: SkillInjectConfig = { enabled: false, skills: [] };
-	/** True once the configured skills have been injected into the live context. */
-	let injected = false;
+	/**
+	 * Skill names currently present in the live context, from ANY source: our
+	 * injections (custom messages), or /skill:name blocks typed by the user or
+	 * agent (stored as plain user messages). undefined = unknown (rescan needed);
+	 * [] = scanned, nothing present.
+	 */
+	let injected: string[] | undefined;
 	/**
 	 * Skill registry snapshot. pi 0.85.x event contexts do not expose
 	 * getSystemPromptOptions (command contexts do), so the registry is captured
@@ -145,6 +153,55 @@ export default function (pi: ExtensionAPI): void {
 	 */
 	let available: SkillRef[] = [];
 	let pendingRefresh = false;
+
+	/** Extract text from an entry's content (string or content-block array). */
+	function entryText(content: unknown): string {
+		if (typeof content === "string") return content;
+		if (Array.isArray(content)) {
+			return content
+				.map((block) => (block && typeof block === "object" && "text" in block ? String((block as { text?: unknown }).text ?? "") : ""))
+				.join("");
+		}
+		return "";
+	}
+
+	/** Skill names named in a <skill name="..."> block's text. */
+	function skillNamesInText(text: string): string[] {
+		const names: string[] = [];
+		for (const match of text.matchAll(SKILL_BLOCK_NAME_PATTERN)) {
+			if (match[1] && !names.includes(match[1])) names.push(match[1]);
+		}
+		return names;
+	}
+
+	/**
+	 * Scan session history (reverse) for skill blocks from any source: our
+	 * skill-inject custom messages (details.skills fast path, content fallback)
+	 * and /skill:name user messages. Returns the union of names present.
+	 */
+	function scanInjectedSkills(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): string[] {
+		const found = new Set<string>();
+		for (let index = entries.length - 1; index >= 0; index--) {
+			const entry = entries[index] as { type?: string; customType?: string; details?: unknown; message?: { role?: string; content?: unknown } };
+			if (entry.type === "custom_message" && entry.customType === SKILL_INJECT_TYPE) {
+				const details = entry.details as { skills?: unknown } | undefined;
+				if (Array.isArray(details?.skills)) {
+					for (const name of details.skills as unknown[]) {
+						if (typeof name === "string") found.add(name);
+					}
+				} else {
+					for (const name of skillNamesInText(entryText((entry as { content?: unknown }).content))) {
+						found.add(name);
+					}
+				}
+			} else if (entry.type === "message" && entry.message?.role === "user") {
+				for (const name of skillNamesInText(entryText(entry.message.content))) {
+					found.add(name);
+				}
+			}
+		}
+		return [...found];
+	}
 
 	function updateStatus(ctx: ExtensionContext): void {
 		if (!ctx.hasUI) return;
@@ -158,11 +215,10 @@ export default function (pi: ExtensionAPI): void {
 	 * undefined when there is nothing to inject. Called from
 	 * before_agent_start at launch and after every compaction.
 	 */
-	function buildInjection(ctx: ExtensionContext): { customType: string; content: string; details: { skills: string[] }; display: boolean } | undefined {
-		if (!state.enabled || state.skills.length === 0) return undefined;
+	function buildInjection(ctx: ExtensionContext, names: string[]): { customType: string; content: string; details: { skills: string[] }; display: boolean } | undefined {
 		const blocks: string[] = [];
 		const injectedNames: string[] = [];
-		for (const name of state.skills) {
+		for (const name of names) {
 			const skill = available.find((s) => s.name === name);
 			if (!skill) continue; // warned at session start
 			try {
@@ -225,7 +281,9 @@ export default function (pi: ExtensionAPI): void {
 		const config = resolveConfig(ctx.cwd);
 		state.enabled = config.enabled;
 		state.skills = config.skills;
-		injected = false;
+		// Resume guard: pick up skill blocks already in the (possibly compacted)
+		// history, whether we injected them or the user/agent typed /skill:name.
+		injected = scanInjectedSkills(ctx.sessionManager.getEntries());
 		pendingRefresh = true;
 
 		if (state.enabled && state.skills.length > 0 && ctx.hasUI && available.length > 0) {
@@ -243,17 +301,22 @@ export default function (pi: ExtensionAPI): void {
 
 	pi.on("before_agent_start", async (event, ctx) => {
 		refreshRegistry(event);
-		if (!state.enabled || injected) return undefined;
-		const message = buildInjection(ctx);
+		if (!state.enabled || state.skills.length === 0) return undefined;
+		if (injected === undefined) {
+			injected = scanInjectedSkills(ctx.sessionManager.getEntries());
+		}
+		const missing = state.skills.filter((name) => !injected!.includes(name));
+		if (missing.length === 0) return undefined;
+		const message = buildInjection(ctx, missing);
 		if (!message) return undefined;
-		injected = true;
+		injected = [...injected!, ...message.details.skills];
 		return { message };
 	});
 
-	// Compaction drops the injected skill content from the live context;
-	// re-inject on the next prompt.
+	// Compaction may drop skill blocks from the live context (ours and
+	// /skill:name alike); rescan the post-compaction history on the next prompt.
 	pi.on("session_compact", () => {
-		injected = false;
+		injected = undefined;
 	});
 
 	pi.registerCommand("skill-inject", {
@@ -288,7 +351,7 @@ export default function (pi: ExtensionAPI): void {
 					const enabled = cmd === "on";
 					state.enabled = enabled;
 					writeConfig(ctx.cwd, { enabled });
-					if (enabled) injected = false; // pick up any pending additions immediately
+					if (enabled) injected = undefined; // rescan: pick up pending additions next prompt
 					ctx.ui.notify(`skill-inject ${enabled ? "enabled" : "disabled"} (persisted).`, "info");
 					updateStatus(ctx);
 					return;
@@ -309,7 +372,7 @@ export default function (pi: ExtensionAPI): void {
 					}
 					state.skills = [...state.skills, arg];
 					writeConfig(ctx.cwd, { skills: state.skills });
-					injected = false; // inject the new skill on the next prompt
+					injected = undefined; // rescan: the new skill is not in history yet
 					ctx.ui.notify(`Added '${arg}' — will inject on next prompt.`, "info");
 					updateStatus(ctx);
 					return;
