@@ -4,9 +4,9 @@
  * Keeps a named list of skills permanently in context. Each configured skill
  * is expanded the same way pi expands a typed `/skill:name` command (frontmatter
  * stripped, body wrapped in a `<skill name=... location=...>` block with the
- * base-dir reference note) and injected as a single post-history custom message
- * via `before_agent_start` — landing after the user message, and after the
- * frag role message when frag is on (extension load order:
+ * base-dir reference note) and injected as a single custom message after
+ * the user message via `before_agent_start` — landing after the user message,
+ * and after the frag role message when frag is on (extension load order:
  * flexible-role-agent < skill-injector).
  *
  * Injection happens at launch (the first prompt of the session) and is
@@ -238,8 +238,8 @@ export default function (pi: ExtensionAPI): void {
 	}
 
 	/**
-	 * Inject the configured skills as one post-history custom message. Returns
-	 * undefined when there is nothing to inject. Called from
+	 * Inject the configured skills as one custom message after the user message.
+	 * Returns undefined when there is nothing to inject. Called from
 	 * before_agent_start at launch and after every compaction.
 	 */
 	function buildInjection(ctx: ExtensionContext, names: string[]): { customType: string; content: string; details: { skills: string[] }; display: boolean } | undefined {
