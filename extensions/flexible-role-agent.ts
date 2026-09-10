@@ -100,6 +100,18 @@ Do not write code unless I explicitly ask you to.`;
 /** Coding agent role with structured-reasoning guidelines appended. */
 const INSTRUCT_ROLE = `${CODING_AGENT_ROLE}\n\nPrefer the repl tool with python over bash or ad hoc scripts. Use think tool liberally before other tools, between tool calls, and before responses. Before beginning, read the structured reasoning skill: 'think-tool-formats'.`;
 
+/** Neutral MCQ benchmark solver (generic; no coding/tools framing). */
+const BENCHMARK_ROLE = `You are an expert solving multiple-choice benchmark questions.\nAnswer each question using only the information provided.\nDo not use any tools. Do not attempt to read files, search, or execute commands.`;
+
+/** Benchmark solver that sanctions ONLY the think tool (method B). */
+const BENCHMARK_THINK_TOOL_ROLE = `You are an expert solving multiple-choice benchmark questions.\nAnswer each question using only the information provided.\nBefore answering, reason through the question using the think tool.\nDo not use any other tools.`;
+
+/** HLE-specific benchmark solver: choices embedded in question text. */
+const BENCHMARK_HLE_ROLE = `You are an expert solving graduate-level multiple-choice benchmark questions (Humanity's Last Exam).\nAnswer each question using only the information provided. Read every answer choice carefully; the choices are embedded in the question text.\nDo not use any tools. Do not attempt to read files, search, or execute commands.`;
+
+/** HLE benchmark solver that sanctions ONLY the think tool (method B). */
+const BENCHMARK_HLE_THINK_TOOL_ROLE = `You are an expert solving graduate-level multiple-choice benchmark questions (Humanity's Last Exam).\nAnswer each question using only the information provided. Read every answer choice carefully; the choices are embedded in the question text.\nBefore answering, reason through the question using the think tool.\nDo not use any other tools.`;
+
 /** Socratic tutor role. */
 const SOCRATIC_TUTOR_ROLE = `You are an expert Socratic tutor.
 Your goal is to help me learn by guiding me through questions and reflection.
@@ -156,6 +168,30 @@ const ROLES: RoleDefinition[] = [
 		prompt: INSTRUCT_ROLE,
 	},
 	{
+		id: "benchmark",
+		label: "benchmark",
+		description: "Neutral multiple-choice benchmark solver (no tools)",
+		prompt: BENCHMARK_ROLE,
+	},
+	{
+		id: "benchmark-think-tool",
+		label: "benchmark-think-tool",
+		description: "Multiple-choice benchmark solver, think tool only",
+		prompt: BENCHMARK_THINK_TOOL_ROLE,
+	},
+	{
+		id: "benchmark-hle",
+		label: "benchmark-hle",
+		description: "HLE benchmark solver (no tools; choices embedded in question)",
+		prompt: BENCHMARK_HLE_ROLE,
+	},
+	{
+		id: "benchmark-hle-think-tool",
+		label: "benchmark-hle-think-tool",
+		description: "HLE benchmark solver, think tool only",
+		prompt: BENCHMARK_HLE_THINK_TOOL_ROLE,
+	},
+	{
 		id: "socratic-tutor",
 		label: "socratic-tutor",
 		description: "Socratic tutor",
@@ -180,6 +216,10 @@ const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
 	{ flag: "cbt", roleId: "cbt" },
 	{ flag: "dp", roleId: "dp" },
 	{ flag: "socratic-tutor", roleId: "socratic-tutor" },
+	{ flag: "benchmark", roleId: "benchmark" },
+	{ flag: "benchmark-think-tool", roleId: "benchmark-think-tool" },
+	{ flag: "benchmark-hle", roleId: "benchmark-hle" },
+	{ flag: "benchmark-hle-think-tool", roleId: "benchmark-hle-think-tool" },
 ];
 
 /** First role launch flag that is set, if any. */
