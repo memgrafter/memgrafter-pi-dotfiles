@@ -112,6 +112,18 @@ const BENCHMARK_HLE_ROLE = `You are an expert solving graduate-level multiple-ch
 /** HLE benchmark solver that sanctions ONLY the think tool (method B). */
 const BENCHMARK_HLE_THINK_TOOL_ROLE = `You are an expert solving graduate-level multiple-choice benchmark questions (Humanity's Last Exam).\nAnswer each question using only the information provided. Read every answer choice carefully; the choices are embedded in the question text.\nBefore answering, reason through the question using the think tool.\nDo not use any other tools.`;
 
+/**
+ * xhigh reasoning-effort directive (method B2). Mirrors the model template's
+ * `{{- reasoning_instructions + '\n\n' }}` position: the line is the FIRST
+ * line of the role, followed by a blank line, then the base B role. The
+ * flexible-role-agent extension prepends this to the composed system prompt
+ * (top of the prompt) and also carries it in the post-history role message.
+ */
+const XHIGH_REASONING_LINE = `Reasoning effort is set to xhigh. Please think carefully through the task, validate key assumptions, consider plausible alternatives, and prioritize correctness, consistency, and clarity in the final answer.`;
+
+/** HLE benchmark solver, think tool + xhigh directive (method B2). */
+const BENCHMARK_HLE_THINK_TOOL_XHIGH_ROLE = `${XHIGH_REASONING_LINE}\n\n${BENCHMARK_HLE_THINK_TOOL_ROLE}`;
+
 /** Socratic tutor role. */
 const SOCRATIC_TUTOR_ROLE = `You are an expert Socratic tutor.
 Your goal is to help me learn by guiding me through questions and reflection.
@@ -192,6 +204,12 @@ const ROLES: RoleDefinition[] = [
 		prompt: BENCHMARK_HLE_THINK_TOOL_ROLE,
 	},
 	{
+		id: "benchmark-hle-think-tool-xhigh",
+		label: "benchmark-hle-think-tool-xhigh",
+		description: "HLE benchmark solver, think tool + xhigh reasoning-effort directive (system prompt top)",
+		prompt: BENCHMARK_HLE_THINK_TOOL_XHIGH_ROLE,
+	},
+	{
 		id: "socratic-tutor",
 		label: "socratic-tutor",
 		description: "Socratic tutor",
@@ -220,6 +238,7 @@ const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
 	{ flag: "benchmark-think-tool", roleId: "benchmark-think-tool" },
 	{ flag: "benchmark-hle", roleId: "benchmark-hle" },
 	{ flag: "benchmark-hle-think-tool", roleId: "benchmark-hle-think-tool" },
+	{ flag: "benchmark-hle-think-tool-xhigh", roleId: "benchmark-hle-think-tool-xhigh" },
 ];
 
 /** First role launch flag that is set, if any. */
@@ -344,6 +363,13 @@ function buildOurSystemPrompt(base: string): string {
 	let prompt = base;
 	if (state.enabled) {
 		prompt = buildFragSystemPrompt(prompt);
+		// B2: xhigh reasoning-effort directive at the very top of the system
+		// prompt, mirroring the model template's `{{- reasoning_instructions +
+		// '\n\n' }}` position. Only for the xhigh role; A/B/C are untouched.
+		if (state.role === "benchmark-hle-think-tool-xhigh" &&
+		    !prompt.startsWith(XHIGH_REASONING_LINE)) {
+			prompt = `${XHIGH_REASONING_LINE}\n\n${prompt}`;
+		}
 	}
 	if (state.trim) {
 		prompt = buildTrimmedSystemPrompt(prompt);
