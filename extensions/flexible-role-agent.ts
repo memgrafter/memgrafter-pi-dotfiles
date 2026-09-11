@@ -404,9 +404,6 @@ const state: FragState = {
 	notools: false,
 };
 
-/** In-memory tracker so the role message is injected only on role change. */
-let lastInjectedRole: string | undefined;
-
 // ============================================================================
 // Settings persistence (optional "frag" key in settings.json)
 // ============================================================================
@@ -520,12 +517,12 @@ function parseFragEntry(entries: ReturnType<ExtensionContext["sessionManager"]["
 }
 
 /**
- * Find the most recently injected frag role message in session history so we do
- * not re-inject the same role after a restart or fork. Parses the
+ * Find the most recently injected frag role message in the live context so we
+ * do not re-inject a role that is already present on the active path. Parses the
  * `[role: <id>]` header; falls back to the legacy `System:\n<role.prompt>`
  * body match for sessions created before the header format.
  */
-function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManager"]["getEntries"]>): string | undefined {
+function scanLastInjectedRole(entries: ReturnType<ExtensionContext["sessionManager"]["buildContextEntries"]>): string | undefined {
 	for (let index = entries.length - 1; index >= 0; index--) {
 		const entry = entries[index] as { type?: string; customType?: string; content?: unknown };
 		if (entry.type !== "custom_message" || entry.customType !== FRAG_ROLE_MESSAGE_TYPE) {
@@ -1072,7 +1069,6 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 					"info",
 				);
 			}
-			lastInjectedRole = scanLastInjectedRole(ctx.sessionManager.getEntries());
 			updateStatus(ctx);
 			return;
 		}
@@ -1112,7 +1108,6 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			state.role = DEFAULT_ROLE_ID;
 		}
 
-		lastInjectedRole = scanLastInjectedRole(ctx.sessionManager.getEntries());
 		updateStatus(ctx);
 
 		// Autocomplete for /frag, mirroring the compaction extension.
@@ -1121,14 +1116,7 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 		);
 	});
 
-	// Compaction replaces the history with a summary entry, dropping the
-	// [role: <id>] message from the live context. Reset the tracker so the
-	// next before_agent_start re-injects the active role.
-	pi.on("session_compact", () => {
-		lastInjectedRole = undefined;
-	});
-
-	pi.on("before_agent_start", async (event) => {
+	pi.on("before_agent_start", async (event, ctx) => {
 		if (!state.enabled && !state.trim && !state.notools) {
 			return undefined;
 		}
@@ -1144,13 +1132,17 @@ export default function piFlexibleRoleAgentExtension(pi: ExtensionAPI): void {
 			return { systemPrompt };
 		}
 
-		// Inject the role as a post-history message, but only on role change. The
-		// `[role: <id>]` header names the active role for the LLM; the TUI
-		// renderer shows that same header as a single line (no duplication).
-		if (state.role !== lastInjectedRole) {
+		// Inject the role as a post-history message when it is not already present
+		// in the live context. Scanning buildContextEntries() (leaf- and
+		// compaction-aware) is authoritative: after a compaction or a tree
+		// navigation that drops the message, the active role is re-established on
+		// the next prompt; when it is still on the active path it is not
+		// duplicated. The `[role: <id>]` header names the active role for the
+		// LLM; the TUI renderer shows that same header as a single line.
+		const liveRole = scanLastInjectedRole(ctx.sessionManager.buildContextEntries());
+		if (state.role !== liveRole) {
 			const role = getRole(state.role);
 			if (role) {
-				lastInjectedRole = state.role;
 				return {
 					systemPrompt,
 					message: {
