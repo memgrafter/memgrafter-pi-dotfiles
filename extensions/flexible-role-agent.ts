@@ -123,6 +123,7 @@ const XHIGH_REASONING_LINE = `Reasoning effort is set to xhigh. Please think car
 
 /** HLE benchmark solver, think tool + xhigh directive (method B2). */
 const BENCHMARK_HLE_THINK_TOOL_XHIGH_ROLE = `${XHIGH_REASONING_LINE}\n\n${BENCHMARK_HLE_THINK_TOOL_ROLE}`;
+const BENCHMARK_HLE_XHIGH_ROLE = `${XHIGH_REASONING_LINE}\n\n${BENCHMARK_HLE_ROLE}`;
 
 /** Socratic tutor role. */
 const SOCRATIC_TUTOR_ROLE = `You are an expert Socratic tutor.
@@ -210,6 +211,12 @@ const ROLES: RoleDefinition[] = [
 		prompt: BENCHMARK_HLE_THINK_TOOL_XHIGH_ROLE,
 	},
 	{
+		id: "benchmark-hle-xhigh",
+		label: "benchmark-hle-xhigh",
+		description: "HLE benchmark solver, no tools, xhigh reasoning-effort directive (system prompt top)",
+		prompt: BENCHMARK_HLE_XHIGH_ROLE,
+	},
+	{
 		id: "socratic-tutor",
 		label: "socratic-tutor",
 		description: "Socratic tutor",
@@ -239,6 +246,7 @@ const ROLE_LAUNCH_FLAGS: { flag: string; roleId: string }[] = [
 	{ flag: "benchmark-hle", roleId: "benchmark-hle" },
 	{ flag: "benchmark-hle-think-tool", roleId: "benchmark-hle-think-tool" },
 	{ flag: "benchmark-hle-think-tool-xhigh", roleId: "benchmark-hle-think-tool-xhigh" },
+	{ flag: "benchmark-hle-xhigh", roleId: "benchmark-hle-xhigh" },
 ];
 
 /** First role launch flag that is set, if any. */
@@ -363,10 +371,11 @@ function buildOurSystemPrompt(base: string): string {
 	let prompt = base;
 	if (state.enabled) {
 		prompt = buildFragSystemPrompt(prompt);
-		// B2: xhigh reasoning-effort directive at the very top of the system
+		// B2/C2: xhigh reasoning-effort directive at the very top of the system
 		// prompt, mirroring the model template's `{{- reasoning_instructions +
-		// '\n\n' }}` position. Only for the xhigh role; A/B/C are untouched.
-		if (state.role === "benchmark-hle-think-tool-xhigh" &&
+		// '\n\n' }}` position. Only for the xhigh roles; A/B/C are untouched.
+		if ((state.role === "benchmark-hle-think-tool-xhigh" ||
+		    state.role === "benchmark-hle-xhigh") &&
 		    !prompt.startsWith(XHIGH_REASONING_LINE)) {
 			prompt = `${XHIGH_REASONING_LINE}\n\n${prompt}`;
 		}
