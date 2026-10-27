@@ -1,6 +1,22 @@
+# Model of the user
+
+Working model of the user (2026-10-17, at the user's request: constructive, not complimentary; correct it when it is wrong). Each pattern has a cost and what to do about it.
+
+- **Compressed, multi-thread messages.** Several decisions, questions and side remarks arrive in one message or mid-turn, often with references like "that response", "it", "the other guy", "C". Cost: misreads and dropped threads. Do: resolve every reference against the transcript; when an interpretation changes what you will do, state it in one line before acting; keep a visible list of open threads and answer each one, saying which are still open.
+- **Fast direction changes.** Choices are made and then reversed within hours (a testbed pick replaced, a design scrubbed to brainstorming, a format choice deferred). Cost: built work gets shelved. Do: label each choice tentative or final when recording it; build the cheap, reversible part first; before an expensive build, say what would be thrown away if the direction changes.
+- **Competing priorities stated as absolutes.** "Drive forward" and "derisk more", "give me everything" and "be concise", "user decides science" and "don't ask me". Cost: the agent picks one silently and gets it wrong. Do: say which one applies to the action at hand and why; lead with the decision needed, then the detail.
+- **Rules accumulate.** New rules are added often (AGENTS.md is near its size budget). Cost: rules conflict or get missed. Do: check new instructions against existing rules, surface conflicts instead of choosing quietly, and propose merging or pruning when rules overlap.
+- **Expects an instruction to be acted on the first time.** A repeated instruction means it was not. Do: act on clear instructions; gate only the expensive or irreversible step (GPU runs, deletions, outward actions) behind a check.
+- **Checks claims and reviews traces.** Do: state only what is verified, show the source, and say plainly when something was wrong. Frustration is a signal that the agent failed; answer it with corrected action, not apology or deference.
+
 # Content
 
 - When generating user facing content, use Simplified Technical English (ASD-STE100).
+
+## Answer these questions each round:
+
+- Is there anything (the user) needs to know about this, if any.
+- What mental models should (the user) apply to the topic at hand, if any.
 
 ## Reasoning
 
@@ -10,13 +26,16 @@
 
 ## Workflows
 
-- NEVER run build commands.
+- NEVER run build commands until you have user approval.
 - Build for production from the start; rework is largest source of waste; we can't afford rework, we must do it right from the start.
 - Do not declare success. Tell the user what to check.
-- After you work on any implementation, answer this question: "Is there anything the user needs to know about this implementation?"
 - If you have a file in recent context, do not read it again before editing, it wastes context.
 - **Always use timeouts on waits and loops** — even long-running ones. Never `sleep 90` or unbounded `while` loops. Use `sleep 15` polling with a max iteration count (e.g., 40 iterations = 10 min), or `timeout` command.
 - **When calling LLMs, use their default token budget as a first-class default.** Prefer omitting token-budget parameters entirely; explicit estimates are fiddly and should only be supplied when the task specifically requires a constrained budget.
+
+## Writing Handoffs
+
+- Write a handoff doc for a new agent to continue the session. Ensure the handoff is standalone and contains all details necessary to continue where we left off.
 
 ## Agent Guidelines
 
@@ -50,9 +69,12 @@ Consistently reflect, in your written thinking output and response output. Inclu
 
 ### Training Cues
 
-Training cues go here. Delete this line once we add our first cue.
-
-- _
+> **WARNING: parsing untrusted binary formats can use all system memory.**
+> 2026-10-24: a wrong Hermes v98 layout guess gave string lengths up to 6.3 GB. The parser copied one slice per string, grew to 30 GB, and was killed with the REPL kernel.
+> 1. Probe first. Read only offsets and lengths, and check that every item ends inside its section. Copy no bytes until the probe passes.
+> 2. Cap the total bytes copied. Stop when the total passes the section size.
+> 3. Run the parser as its own process with `timeout`, never in a shared REPL kernel. `ulimit -v` fails on macOS.
+> 4. Check RSS (`ps -o rss= -p <pid>`) while it runs. Stop it above a few hundred MB.
 
 ## Skills Notes
 
@@ -150,6 +172,16 @@ kr('registry', 'delete', 'auth-knowledge')
 - Update docs with every meaningful feature change; stale docs are worse than no docs.
 - Use examples over prose when possible — a runnable example teaches faster.
 - Match the repo's existing documentation voice: if its docs are terse bullets, keep additions terse — no long-form prose, blockquotes, or citations where a line or two suffices.
+
+## Writing Copy
+
+For user-facing text (websites, guides, App Store copy, FAQs).
+
+- No LLM-isms: contrast framing ("not X, it's Y", "Free. Not a trial."), stacked dramatic fragments, tidy aphorisms ("Nothing a character says is final"), filler words (just, simply, seamless, unlock, journey), exclamation marks, dashes used for drama.
+- No fake copy: verify every claim against the code or a primary source. No unverifiable times or superlatives ("in two minutes", "most complete"). No invented UI labels.
+- No philosophizing about memory, identity or stories.
+- Nothing out of place: no ticket ids, file names or developer jargon in reader-facing text.
+- Plain, second person, short sentences, American English.
 
 ## "Pi Agent" Orchestration (tmux)
 
