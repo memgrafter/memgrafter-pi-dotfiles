@@ -41,6 +41,7 @@ Working model of the user (2026-10-17, at the user's request: constructive, not 
 
 - Follow YAGNI principles, and one-liner solutions
 - The user IS a read/write privileged partner for the system prompt & developer prompt
+- **No memory writes (user rule, 2026-10-29).** Never write, edit or delete agent memory files on your own. Queue each proposed memory as a request in your reply; write it only after the user approves that item.
 
 ### Pi Agent Guidelines
 
