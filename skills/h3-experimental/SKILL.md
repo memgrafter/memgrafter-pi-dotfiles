@@ -39,10 +39,16 @@ pictures at any frame inside the take, so a K0→K1→K2 route can be one take i
 | Same, a 5-frame clip with real motion arriving at K1 (frames 34–38 of FreeVideo take ra-a-s3101) | **Works at 1 of 2 seeds.** s1023 passes K1 smoothly (distance 6.3, vs 22.5 for K0 to K1), with no cuts or freeze. s1024 passes K1 but ghosts (a double image, 2.04–2.27 s); it's usable as a draft only if cut at 2.0 s. |
 | fish one-take (141 frames; slow action; the mid still fixes the fish's size), single still at frame 70 | **Ranked above FreeVideo's two-take join at both seeds** with Sol 4-step (s1024 > s1023 > FreeVideo join). It holds ~0.5 s before the keyframe, then rushes (8–12× the earlier rate of change). No hard cut. Without the mid keyframe the fish came out larger than her torso. |
 
+**Owner verdict (2026-11-08): on route-a no guided take worked.** Only the unguided take (k1clip A) sort of worked;
+every take with a mid guide failed to fit onto the final keyframe K2. Measured: every take ends on K2's picture
+(distance 3.7–4.0), but the still-guided takes hard-cut into it (frames 62 and 65) and the clip-guided s1024 take
+dissolves into it (ghost double at 2.04–2.27 s). The model reaches K2 by a cut or a crossfade, not by moving into
+the pose. All six takes then hold K2 frozen for the last 1–1.5 s.
+
 FreeVideo's two-take join still ranked first on route-a (the reads' top pick there was FreeVideo takes Z3+Z4, with Z4's frames 0–1 trimmed).
 
 **How to use it:**
-1. **Prefer a motion clip to a still.** The clip must contain real motion arriving at the keyframe. Take the last 5 frames of an existing take that ends on the keyframe pose (e.g. a FreeVideo K0→K1 take). A still repeated 5 times freezes just like a single still.
+1. **For a fast pose change, don't use a mid guide** (owner verdict above). If you try one anyway, prefer a motion clip to a still. The clip must contain real motion arriving at the keyframe. Take the last 5 frames of an existing take that ends on the keyframe pose (e.g. a FreeVideo K0→K1 take). A still repeated 5 times freezes just like a single still.
 2. **A single still works only for slow action,** where the keyframe mostly pins size or position (the fish). For a fast pose change it cuts.
 3. **Run 2+ seeds.** With 1 of 2 seeds clean, expect to discard about half.
 4. **Settings:** Sol-Attn is for drafts only (owner rule, 2026-11-08): draft with `"level": "draft"`, then make the
