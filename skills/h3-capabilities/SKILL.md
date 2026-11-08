@@ -10,6 +10,10 @@ RTX 3090s. The reads are in `h3/review/tests/comfy-bakeoff/reads/`; the letter k
 `h3/review/tests/comfy-bakeoff-unblinded/`. All times are for one 5 s 768×1344 take on one 3090.
 Running jobs: skill `h3-takes`. Experimental tools (mid-shot guides, re-dress): skill `h3-experimental`.
 
+**The full record is `findings.md` beside this file:** owner verdicts, measurements, and every reader verdict per
+scene × setting × seed. Check advice against it before deciding. When the owner gives a new rule or verdict, add it
+to findings.md §1 first, then update this skill.
+
 ## 1. Pick the engine per shot (owner decision, 2026-11-08)
 
 | Shot | Engine and settings | Why (blind reads) |
