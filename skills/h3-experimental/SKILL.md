@@ -45,7 +45,11 @@ FreeVideo's two-take join still ranked first on route-a (the reads' top pick the
 1. **Prefer a motion clip to a still.** The clip must contain real motion arriving at the keyframe. Take the last 5 frames of an existing take that ends on the keyframe pose (e.g. a FreeVideo K0→K1 take). A still repeated 5 times freezes just like a single still.
 2. **A single still works only for slow action,** where the keyframe mostly pins size or position (the fish). For a fast pose change it cuts.
 3. **Run 2+ seeds.** With 1 of 2 seeds clean, expect to discard about half.
-4. **Settings:** Sol 4-step was fine (it ranked top on fish). Dense 8-step changed nothing in the outcome.
+4. **Settings:** Sol-Attn is for drafts only (owner rule, 2026-11-08): draft with `"level": "draft"`, then make the
+   final dense at the same seed (4-step, or 8-step for fast action). On fish, the Sol 4-step take s1023-A freezes
+   for 0.55 s before the keyframe (frames 59–72, 10 near-duplicate frames), then moves about 30× faster for 1.5 s; the
+   owner saw it as a frame-rate glitch. The dense 8-step take at the same seed (s1023-B) repeats every 4th frame at
+   3.3–4.1 s. Check every guided take for both.
 5. **ComfyUI fl2va reaches the last frame ~1 s early and holds,** so plan a trim.
 
 **Check every take for:**
@@ -63,7 +67,7 @@ takes the characters from the job's reference pictures. Use it for a take with g
 
 ```json
 {"engine": "comfy", "task": "ref2va", "refs": [{"path": "crimson-frost-portrait.jpg"}, {"path": "lantern-cavern-beast.png"}],
- "prompt": "cfv-run2.txt", "seconds": 5, "steps": 8, "sparse": "none",
+ "prompt": "cfv-run2.txt", "seconds": 5, "steps": 8,
  "control": {"video": "cfv-h3x-run2-base-s1024.mp4", "strength": 1.0}}
 ```
 The graph: LoadVideo → Canny (0.4 / 0.8) → `MiniMaxH3FunControlNetApply` (Fun ControlNet union int8). Keep the source video's length equal to the job's `seconds`.
@@ -80,7 +84,7 @@ The graph: LoadVideo → Canny (0.4 / 0.8) → `MiniMaxH3FunControlNetApply` (Fu
 
 **How to use it:**
 1. **Use strength 1.0** for motion fidelity; 0.6 lets the take drift.
-2. **Sol is fine:** comfyjob.py applies the ControlNet after Sol-Attn. If you ever build the graph by hand, keep that order. BlockSparseAttention replaces every block patch without chaining, so a ControlNet applied before it is silently dropped. That's how the first four Sol + ControlNet bake-off takes were wasted.
+2. **Sol-Attn for re-dress drafts only;** the final is dense (`"steps": 8`, no `level`). comfyjob.py applies the ControlNet after Sol-Attn. If you ever build the graph by hand, keep that order. BlockSparseAttention replaces every block patch without chaining, so a ControlNet applied before it is silently dropped. That's how the first four Sol + ControlNet bake-off takes were wasted.
 3. **RAM:** a ControlNet lane holds about 17–20 GB. Run one lane with `control` jobs and nothing else on vert at the same time. Two lanes died when RAM peaked at 30.3 and 31.8 GB.
 4. **The source must be a finished take with the motion you want.** It won't fix motion problems; the source's hood flip came through.
 

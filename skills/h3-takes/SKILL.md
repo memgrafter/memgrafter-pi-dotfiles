@@ -35,7 +35,10 @@ prompt for you, and pulls finished takes into one review packet per take.
      `"finish": "<draft name>"` (~175 s).
    - The finished take is identical to a `light` take at that seed; h3job.py refuses a finish whose fields differ.
    - Name drafts `cfv-<prompt>-s<seed>-draft` and finishes `cfv-<prompt>-s<seed>`.
-   - Read drafts like takes. They are half size, so judge motion, staging and objects, not fine detail. If a beat fails
+   - Read drafts like takes. They are half size, so judge motion, staging and objects, not fine detail.
+   - ComfyUI seeds also run as drafts: `"level": "draft"` (Sol-Attn 4-step, 122 s). The final is the same job without
+     `level` at the same seed (dense attention, close to the draft but not exact). Sol-Attn is never used for a final
+     (owner rule, 2026-11-08); the runner refuses `sparse`. Details: skill `h3-capabilities` §2. If a beat fails
    3 prompt versions on the same problem (an object floating, appearing from nowhere, or the wrong size), stop rewording
    and pin frames instead: FLUX keyframe, first/last frame, then the stitch technique (`docs/H3_TECHNIQUES.md` §4).
 

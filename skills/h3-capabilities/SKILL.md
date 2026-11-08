@@ -1,6 +1,6 @@
 ---
 name: h3-capabilities
-description: Which MiniMax H3 capability to use for a shot, in which engine (FreeVideo or ComfyUI), with which settings and why: the draft and finish passes, the ComfyUI fast lane, keyframes, re-dress, what not to use, and what is still untested. Read before writing any H3 job file.
+description: Which MiniMax H3 capability to use for a shot, in which engine (FreeVideo or ComfyUI), with which settings and why: the draft and finish passes (Sol-Attn is drafts-only), the ComfyUI fast lane, keyframes, re-dress, what not to use, and what is still untested. Read before writing any H3 job file.
 ---
 
 # H3 capabilities: what to use, how, and why
@@ -15,11 +15,16 @@ Running jobs: skill `h3-takes`. Experimental tools (mid-shot guides, re-dress): 
 | Shot | Engine and settings | Why (blind reads) |
 |---|---|---|
 | ref2va (characters from reference pictures) with action or props | FreeVideo `light`. Draft with `level: "draft"`, finish with `finish` | FreeVideo ranked above every ComfyUI setting on zoomB2, run2tv, run2 s1023 and trust2 s1023 |
-| fl2va (first and last frame) | ComfyUI, `steps` 4, `sparse` "sol13" (122 s) | Level with FreeVideo on hookfl2; ComfyUI ranked FINAL and FreeVideo below on the route-a-C one-take |
-| t2va (text only) | ComfyUI 4-step Sol | A clean, closed 360° orbit at both seeds (FINAL) |
-| Calm i2va (acting, small moves) | ComfyUI 4-step Sol | Level with FreeVideo on decide4 |
+| fl2va (first and last frame) | ComfyUI: Sol 4-step drafts (122 s), dense 4-step final (150 s) | Level with FreeVideo on hookfl2; ComfyUI ranked FINAL and FreeVideo below on the route-a-C one-take |
+| t2va (text only) | ComfyUI: Sol 4-step drafts, dense 4-step final | A clean, closed 360° orbit at both seeds in every int8 setting |
+| Calm i2va (acting, small moves) | ComfyUI: Sol 4-step drafts, dense 4-step final | Level with FreeVideo on decide4 |
 | i2va with a big camera move (orbit from a still) | FreeVideo | FreeVideo ranked above every ComfyUI setting on the orbit |
-| A ComfyUI shot with fast action | ComfyUI `steps` 8 (205 s) | 8-step was best for action and props; on calm shots 8-step sometimes adds smoke or plumes, or drifts armour material |
+| A ComfyUI shot with fast action | ComfyUI: Sol 4-step drafts, dense 8-step final (268 s, slower than FreeVideo's 233 s) | 8-step was best for action and props; on calm shots 8-step sometimes adds smoke or plumes, or drifts armour material |
+
+**Sol-Attn is for drafts only (owner rule, 2026-11-08).** Every ComfyUI final uses dense attention. The blind reads
+had rated Sol equal to dense at the same step count (14 of 15 comparisons); the owner overruled that after watching the
+takes. comfyjob.py enforces it: only a job with `"level": "draft"` gets Sol-Attn, and a job that asks for `sparse`
+is refused.
 
 Costume fidelity sometimes favoured ComfyUI (run2 s1024, trust2 s1024). The FreeVideo takes were existing production
 takes of prompts written for FreeVideo, so ComfyUI may do better with prompts tuned for it (not tested).
@@ -35,10 +40,13 @@ takes of prompts written for FreeVideo, so ComfyUI may do better with prompts tu
 - Cost: N drafts plus 1 finish = N×125 + 175 s, against N×233 s for full takes. That saves 24% at 3 drafts per keeper and 34% at 5. It loses at 1 draft per keeper; the break-even is about 1.6.
 - Use it whenever you expect to look at 2 or more seeds per keeper. That is the normal case (h3-takes: 2 seeds per prompt version, then more seeds on the better one).
 
-**ComfyUI (approximate).**
-- The 4-step Sol take (122 s) and the 8-step Sol take (205 s) at the same seed keep the same composition and timing in most situations: coarse frame correlation 0.72–0.80, against 0.36–0.62 for unrelated seeds.
-- Details, and sometimes the costume, change.
-- Use the 4-step take to pick the seed, then run 8-step only where the shot needs it (fast action). For calm, fl2va and t2va shots the 4-step take is usually the final.
+**ComfyUI (close, not exact).**
+- **Draft:** `"level": "draft"`, Sol-Attn 4-step, 122 s.
+- **Final:** the same job without `level`, at the same seed. That's dense 4-step (150 s) for calm, fl2va and t2va shots, or `"steps": 8` dense (268 s) for fast action.
+- **How close the final is to the draft** (coarse frame correlation at the same seed, bake-off pairs; unrelated seeds average 0.69):
+  - Sol 4-step draft → dense 4-step final: mean 0.95, lowest 0.81 (16 pairs). The same shot; details shift a little.
+  - Sol 4-step draft → dense 8-step final: mean 0.86, lowest 0.63 (16 pairs). Usually the same composition and timing; details, and sometimes the costume, change.
+- Drafts cost 122 s against 150 s for a dense 4-step take, so drafting with Sol saves about 19% per seed you throw away.
 
 Seeds never carry between FreeVideo and ComfyUI. Choose the engine before drafting.
 
@@ -48,14 +56,15 @@ FreeVideo jobs: as in `h3-takes`, plus `"level": "draft"` and `"finish"`.
 
 ComfyUI jobs use the same fields plus `"engine": "comfy"`. Full list: `production/h3/comfy/comfyjob.py`.
 ```json
+{"name": "cmf-<prompt>-s<seed>-draft", "engine": "comfy", "level": "draft", "task": "fl2va", "prompt": "<prompt>.txt",
+ "first": "k0.png", "last": "k2.png", "w": 768, "h": 1344, "seconds": 3.75, "seed": 3101, "test": "cfv"}
 {"name": "cmf-<prompt>-s<seed>", "engine": "comfy", "task": "fl2va", "prompt": "<prompt>.txt",
- "first": "k0.png", "last": "k2.png", "w": 768, "h": 1344, "seconds": 3.75, "seed": 3101, "test": "cfv",
- "steps": 4, "sparse": "sol13"}
+ "first": "k0.png", "last": "k2.png", "w": 768, "h": 1344, "seconds": 3.75, "seed": 3101, "test": "cfv", "steps": 4}
 ```
 - **`task`:** ref2va needs `refs` (images only). i2va needs `first`. fl2va needs `first` and `last`. t2va needs neither.
 - **`seconds`** is required. It rounds up to the 17k+5 frame grid at 24 fps (5 s = 124 frames). The model's trained range is about 124–362 frames.
 - **`steps`:** 4 (default) or 8. Each loads the matching LightX2V Turbo LoRA: ref2v 4-step v1.0 or 8-step v1.1; fl2v 4-step v1.3 or 8-step v1.1.
-- **`sparse`:** "sol13" (default) is Sol-Attn at τ 1.3. It matched dense attention at the same step count in 14 of 15 comparisons and is 1.2× faster. "none" means dense INT8 attention.
+- **`level`:** `"draft"` is Sol-Attn at τ 1.3, about 1.2× faster. Omit it for a final, which runs dense INT8 attention. No other level is accepted, and `finish` is FreeVideo only.
 - **Fixed settings:** the Comfy-Org int8_convrot checkpoints (the ref2va model for ref2va; the fl2va model for i2va, fl2va and t2va), comfy-kitchen INT8 attention, MiniMaxH3SigmaShift 12/3, euler sampler, simple schedule, 24 fps, ComfyUI pinned at commit bdb0816a.
 - **Naming:** prefix ComfyUI takes `cmf-` so reads and the log show which engine made them. `h3.py run/status/pull` treat them like FreeVideo takes.
 - **ComfyUI fl2va end pose:** in the route-a reads, every ComfyUI fl2va take reached the last frame about 1 s early and held it. Plan a trim, or allow ~1 s more than the move needs.
@@ -78,15 +87,15 @@ ComfyUI jobs use the same fields plus `"engine": "comfy"`. Full list: `productio
 | Option | Why not |
 |---|---|
 | W4A4 (convrot_w4a4) | 103 s with Sol, but unusable in every read, including when exported from bf16. Seeds don't carry over either. |
+| Sol-Attn on a final | Owner rule: drafts only (see §1) |
 | W6A8, W4A8 | No faster than int8 on a 3090 (152.6 s vs 150 s dense); adds strobing and colour casts |
 | FP8, NVFP4, MXFP8, "FP4 Marlin" | Emulated on a 3090 (sm_86), with no native kernel; comfy-kitchen has no Marlin kernel. SGLang's Marlin FP4 covers only the text encoder's LLM layers, not the H3 DiT. |
-| Sol τ 2.0 | 114 s, but strobes at some seeds |
+| Sol τ 2.0, even for drafts | 114 s, but strobes at some seeds |
 | Kablex Ref2VA-VSA node | Superseded by core Sol-Attn: 140 s vs 122 s, a transplanted gate trained on fl2va, and +12 GB RAM per lane. Its gate file was deleted from vert. |
 | pytorch attention | 206 s. comfy-kitchen INT8 attention is 1.4× faster. |
-| Dense 8-step | 268 s, slower than FreeVideo. Sol 8-step gives the same picture in 205 s. |
 | FreeVideo `--step-cache easycache-av` | 256.6 s vs 233 s, no gain |
 
-Rule: on a 3090, speed comes from attention (INT8 attention, then Sol-Attn), not from weight format.
+Rule: on a 3090, speed comes from attention (INT8 attention; Sol-Attn for drafts), not from weight format.
 
 ## 6. Available but untested
 
