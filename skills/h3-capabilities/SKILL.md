@@ -26,6 +26,18 @@ had rated Sol equal to dense at the same step count (14 of 15 comparisons); the 
 takes. comfyjob.py enforces it: only a job with `"level": "draft"` gets Sol-Attn, and a job that asks for `sparse`
 is refused.
 
+**Why ComfyUI is still used now that Sol-Attn is drafts-only (2026-11-08; whether to keep it is an open owner decision, ticket csc-wzib):**
+- **Speed is now a small edge.** Straight to a final, dense 4-step takes 150 s against FreeVideo's 233 s (1.55×). With
+  drafting, a keeper costs N×122 s + 150 s in ComfyUI against N×125 s + 175 s in FreeVideo, only 6–7% cheaper at 2–3
+  drafts per keeper.
+- **Quality is the reason.** Dense ComfyUI settings alone earned FINAL where FreeVideo got DRAFT:
+  - route-a-C s1023: dense 4-step and dense 8-step both FINAL; FreeVideo's two takes DRAFT (flashes and pops).
+  - hookfl2 s1023: dense 4-step FINAL; FreeVideo DRAFT.
+  - orbitT2V s1023: dense 4-step FINAL; FreeVideo wasn't tested on text-only.
+  
+  At s1024 none of these scenes had a FINAL from either engine; on hookfl2 the dense 8-step take was the reader's "near-FINAL" best.
+- **Capabilities FreeVideo lacks:** ControlNet re-dress (§ skill `h3-experimental`) and the untested features in §6.
+
 Costume fidelity sometimes favoured ComfyUI (run2 s1024, trust2 s1024). The FreeVideo takes were existing production
 takes of prompts written for FreeVideo, so ComfyUI may do better with prompts tuned for it (not tested).
 
