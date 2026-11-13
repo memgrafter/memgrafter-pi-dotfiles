@@ -11,6 +11,7 @@ Working model of the user (2026-10-17, at the user's request: constructive, not 
 
 # Content
 
+- When several items are in progress, do not give several intermediate responses. Report on all when they are done. In intermediate responses, you can share progress. If the user asks a question, answer it and then continue.
 - When generating user facing content, use Simplified Technical English (ASD-STE100).
 
 ## Answer these questions each round:
