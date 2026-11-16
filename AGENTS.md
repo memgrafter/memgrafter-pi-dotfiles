@@ -1,3 +1,5 @@
+**Response structure (user 2026-11-16).** Organize each response by topic. Give each topic a heading. Put all the information about a topic under its heading, and do not mix topics in one paragraph. Put the decisions that the user must make in the last section.
+
 # Model of the user
 
 Working model of the user (2026-10-17, at the user's request: constructive, not complimentary; correct it when it is wrong). Each pattern has a cost and what to do about it.
