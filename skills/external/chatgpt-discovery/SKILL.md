@@ -1,90 +1,43 @@
-# ChatGPT unpersonalized discovery extraction
+---
+name: chatgpt-unpersonalized-discovery
+description: Capture fresh unpersonalized ChatGPT responses and source panels with resumable checkpoints.
+---
 
-Skill: `chatgpt-unpersonalized-discovery`
-Domains: `chatgpt.com`, `www.chatgpt.com`
+# ChatGPT unpersonalized discovery
 
-## Workflow for a supplied prompt list
+**Domains:** `chatgpt.com`, `www.chatgpt.com`  
+**Browser library:** [`discoveryChat-library.js`](./discoveryChat-library.js), injected as `window.discoveryChat`.
 
-1. Check saved prompt/run IDs to prevent duplicate submissions.
-2. Navigate using the navigation tool to `https://chatgpt.com/?temporary-chat=true` for each prompt.
-3. Select **Personalization → Unpersonalized** and verify the page states: “This chat will ignore memory, plugins, and custom instructions.” Fail closed if not verified.
-4. Submit the exact supplied prompt.
-5. Poll in short tool calls until the response is complete, there is no Stop button, and response text is stable across two polls. Do not mistake a preamble for a final answer.
-6. Save a response checkpoint immediately.
-7. Open the response’s **ellipsis → View sources**. Do not use citation badge buttons for URL extraction.
-8. Wait for the panel to finish rendering, then expand **Show N more**. Capture every entry’s title, exact URL, site, and excerpt, preserving main Sources and More as separate sections.
-9. Validate expected and captured source counts, titles, and HTTP(S) URLs. Save and read back both files before leaving the chat.
-10. On timeout inspect the current page and saved checkpoints before retrying. Do not blindly resubmit or abandon an uncaptured panel.
+## Workflow
 
-## Output format
+1. Check saved prompt/run IDs and exports to avoid duplicates. Before a new submission, ensure at least 60 seconds have elapsed since the previous submission. The runner owns pacing, persistence, and recovery; the library only handles browser interactions.
+2. Navigate with the navigation tool to `https://chatgpt.com/?temporary-chat=true`. Call `prepare()` to verify that the fresh chat is unpersonalized. Never change account-wide settings. The menus use keyboard Enter and `aria-controls`; the English menu labels and confirmation banner are language-sensitive.
+3. Save a `submission_pending` checkpoint before sending. Call `submit(prompt, expectedModel)` with the supplied prompt. An optional exact model label causes the helper to stop on mismatch, not change the model. Record the returned submission time and model label immediately. If the submission status is uncertain, inspect the current chat and checkpoints before taking further action; never blindly resend.
+4. Poll `response()` in short, bounded calls. Stop on `rate_limited`; require two consecutive complete observations with identical nonempty response text and no Stop button. Checkpoint the response immediately.
+5. Call `openSources(conversation_url)` to open the response’s ellipsis → View sources menu. If it returns `panel_ready`, persist that baseline before calling `sources(baseline)`. The baseline records the initially visible and hidden counts by section. Resume using the saved baseline if interrupted; if the panel closed, reopen it but retain the original baseline for validation. Do not infer URLs from citation badges.
+6. Wait for `sources(baseline)` to return `ready: true`. Validate that the captured counts equal the initial counts plus the displayed expansion counts, and that each entry has a title and HTTP(S) URL. Preserve Sources and More separately; More entries are additional results, not necessarily citations.
+7. If the verified menu has no View sources item, use the result from `openSources()`. `no_sources_verified` means there are also no inline links or badges. `no_view_sources_with_inline_links_or_badges` means the panel capture is incomplete; retain inline links and badge counts on the response, not as source-panel entries.
+8. Write and read back the JSONL exports before leaving the chat. Audit unique prompt/run IDs, prompt matches, timing, model labels, source counts, and exceptions. Capture validation does not establish factual accuracy.
 
-JSONL, optionally with `.json` extensions for preview. One response per line in `responses.json`; one source-panel entry per line in `sources.json`.
+## Example browser calls
 
-### Response
-```json
-{"record_id":"batch-p001-r01","prompt_id":1,"run":1,"prompt":"...","response_text":"...","conversation_url":"...","captured_at":"...","model_label":"High","personalization_mode":"unpersonalized","personalization_verified":true,"personalization_verification":{},"mentions":[],"source_counts":{"main":5,"more":45},"sources_complete":true,"source_status":"captured"}
-```
-
-### Source
-```json
-{"record_id":"batch-p001-r01","section":"main","position":1,"title":"...","url":"https://...","canonical_url":"https://...","site":"...","excerpt":"..."}
-```
-
-- Recursively sort keys. Preserve array and source order.
-- Preserve exact URLs; strip known tracking parameters only in a separate canonical URL.
-- Preserve repeated entries; deduplicate only in derived analysis.
-- More entries are additional results, not necessarily cited sources.
-- First textual mention order is not recommendation rank; track those separately.
-- Track requested competitor aliases and retain full text for identifying additional competitors.
-- Use `.txt` backing files for read–append–save. `getArtifact()` automatically parses `.json`, which conflicts with JSONL. There is no true append API.
-- Prefer per-prompt checkpoints. Avoid bulky HTML in cumulative files.
-
-## Validation
-
-- Every requested prompt/run ID present exactly once.
-- Unpersonalized verified before every submission.
-- Every source has a title and HTTP(S) URL.
-- Captured sources equal initially visible entries plus the Show N more count.
-- Response source counts match joined source records.
-- Zero sources requires no citation badges, no response links, and no View sources menu item—not simply an empty loading panel.
-- Save a final audit artifact; never claim citation completeness from badge labels or favicon domains.
-
-## Browser library API
-
-The saved skill injects `window.discoveryChat`:
-
-- `await discoveryChat.prepare()` — select and verify unpersonalized fresh chat.
-- `await discoveryChat.submit(prompt)` — submit exact prompt.
-- `discoveryChat.response()` — completion state and response data.
-- `await discoveryChat.openSources()` — open Sources or verify no sources.
-- `await discoveryChat.sources()` — expand and extract; poll until `ready`.
-- `discoveryChat.closeSources()` — dismiss panel.
-
-Example orchestration:
 ```js
-await navigate({url:'https://chatgpt.com/?temporary-chat=true'});
-const verification = await browserjs(() => discoveryChat.prepare());
-await browserjs(p => discoveryChat.submit(p), prompt);
-// Poll in separate bounded calls and require stable complete text twice.
+await navigate({url: 'https://chatgpt.com/?temporary-chat=true'});
+const verified = await browserjs(() => discoveryChat.prepare());
+// Check pacing and persist the submission-pending checkpoint first.
+const submitted = await browserjs((p, m) => discoveryChat.submit(p, m), prompt, expectedModel ?? null);
+// Persist submitted, then use bounded polls until two complete responses match.
 const response = await browserjs(() => discoveryChat.response());
-// Save checkpoint before proceeding.
-const opened = await browserjs(() => discoveryChat.openSources());
-const sources = await browserjs(() => discoveryChat.sources());
-// Repeat sources() while pending; validate/save before navigating away.
+// Persist the stable response before opening the panel.
+const baseline = await browserjs(url => discoveryChat.openSources(url), response.conversation_url);
+// Persist baseline before expansion; retry bounded capture if it returns pending.
+const result = baseline.status === 'panel_ready'
+  ? await browserjs(b => discoveryChat.sources(b), baseline)
+  : baseline;
 ```
 
-## UI implementation notes
+## Export conventions
 
-- Personalization and response ellipsis dropdowns may require a synthetic `pointerdown`, not `.click()`.
-- Personalization option and confirmation use English text because no stable semantic option ID was found. This is language-sensitive.
-- View sources uses structural selector `[role="menuitem"] use[href$="#codex-icon-book-open-light-16"]`.
-- Sources panel can be `[role="dialog"][aria-label="Sources"]` or `[role="complementary"][aria-label="Sources"]` depending on layout.
-- Source badges render buttons without `href`; the full Sources panel renders anchors with exact destinations.
-- Delayed navigation notifications may be stale; inspect the actual active tab.
-- Navigation must use the navigation tool/helper, never page JavaScript location/history.
-- Change only per-chat personalization, not account-wide settings.
-- Ask for visual confirmation when behavior or selectors change.
-
-## Related artifacts
-
-`discoveryChat-library.js` contains the browser helper implementation. The skill manager contains the reusable installed skill.
+- `responses.jsonl.txt`: one record per prompt/run, with `record_id`, `prompt_id`, `run`, `prompt`, `response_text`, `conversation_url`, `captured_at`, `model_label`, personalization evidence, `mentions`, `source_counts` (`main`, `more`), `sources_complete`, and `source_status`. Include `inline_links` and `badge_count` where applicable. First textual mention order is not recommendation rank; report them separately if tracked.
+- `sources.jsonl.txt`: one record per source-panel entry, with `record_id`, `section`, `position`, `title`, `url`, `canonical_url`, `site`, and `excerpt`. Preserve exact URLs and repeated entries. Strip known tracking parameters only from the separate `canonical_url` field.
+- Recursively sort object keys; preserve array and source order. Use `.txt` backing files because the artifact reader auto-parses `.json`. Keep per-prompt checkpoints and produce a final batch audit.

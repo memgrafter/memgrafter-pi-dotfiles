@@ -1,69 +1,18 @@
 window.discoveryChat = (() => {
- const sleep=ms=>new Promise(r=>setTimeout(r,ms));
- const visible=e=>!!e&&e.getBoundingClientRect().width>0;
- const panel=()=>document.querySelector('[role="complementary"][aria-label="Sources"], [role="dialog"][aria-label="Sources"]');
- const root=()=>[...document.querySelectorAll('[data-dil-response]')].at(-1);
- const menuItems=()=>[...document.querySelectorAll('[role="menuitem"]')].filter(visible);
- const pointer=b=>b.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0,pointerType:'mouse',ctrlKey:false}));
- let expectedSources=null;
+ const wait=ms=>new Promise(r=>setTimeout(r,ms)), vis=e=>!!e?.getBoundingClientRect().width, all=(s,r=document)=>[...r.querySelectorAll(s)], root=()=>all('[data-dil-response]').at(-1), banner='This chat will ignore memory, plugins, and custom instructions';
+ const panel=()=>document.querySelector('[role=complementary][aria-label=Sources],[role=dialog][aria-label=Sources]');
+ const key=e=>{e.focus();e.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));};
+ const model=()=>all('button[aria-label="Select ChatGPT model"]').find(vis)?.innerText.trim()||null;
+ async function menu(b){if(!b)throw Error('Menu trigger missing');if(b.getAttribute('aria-expanded')!=='true')key(b);for(let i=0;i<12;i++){const m=document.getElementById(b.getAttribute('aria-controls'));if(m&&vis(m))return m;await wait(100);}throw Error('Menu did not open');}
+ function fresh(){if(!document.body.innerText.includes(banner)||root())throw Error('Fresh unpersonalized chat not verified');}
+ function gap(url){if(url&&document.URL!==url)throw Error('Unexpected active chat');}
+ const more=s=>all('button[aria-controls][aria-expanded=false]',s);
  return {
- async prepare(){
-  expectedSources=null;
-  let b;
-  for(let i=0;i<40;i++){b=[...document.querySelectorAll('button[aria-haspopup="menu"]')].find(e=>visible(e)&&e.textContent.trim()==='Personalization');if(b)break;await sleep(200);}
-  if(!b)throw Error('Personalization dropdown unavailable');
-  pointer(b);await sleep(200);
-  const option=[...document.querySelectorAll('[role="menuitemradio"][data-radix-collection-item]')].find(e=>visible(e)&&e.textContent.startsWith('Unpersonalized'));
-  if(!option)throw Error('Unpersonalized option unavailable (English UI required)');
-  option.click();await sleep(200);
-  const confirmation='This chat will ignore memory, plugins, and custom instructions';
-  if(!document.body.innerText.includes(confirmation))throw Error('Unpersonalized confirmation missing');
-  if(root())throw Error('Not a fresh chat: existing response detected');
-  return {mode:'unpersonalized',page_confirmation:confirmation,verified_at:new Date().toISOString()};
- },
- async submit(prompt){
-  if(typeof prompt!=='string'||!prompt.trim())throw Error('Prompt must be nonempty');
-  if(!document.body.innerText.includes('This chat will ignore memory, plugins, and custom instructions'))throw Error('Unpersonalized not verified');
-  if(root())throw Error('Existing response: reopen a fresh temporary chat');
-  const e=[...document.querySelectorAll('[contenteditable="true"][role="textbox"]')].find(visible);
-  if(!e||e.innerText.trim())throw Error('Composer absent or not empty');
-  e.focus();document.execCommand('insertText',false,prompt);await sleep(400);
-  if(e.innerText.trim()!==prompt.trim())throw Error('Composer does not match prompt');
-  const b=[...document.querySelectorAll('button[aria-label="Send"]')].find(e=>visible(e)&&!e.disabled);
-  if(!b)throw Error('Send unavailable');b.click();return {submitted:true};
- },
- response(){
-  const r=root();const complete=!!r&&document.body.innerText.includes('Response complete')&&![...document.querySelectorAll('button[aria-label="Stop"],button[aria-label="Stop streaming"]')].some(visible);
-  return {complete,response_text:r?.innerText||'',conversation_url:document.URL,captured_at:new Date().toISOString(),model_label:[...document.querySelectorAll('button[aria-label="Select ChatGPT model"]')].find(visible)?.innerText||null};
- },
- async openSources(){
-  expectedSources=null;
-  if(panel())return {opened:true};
-  const r=root();if(!r)throw Error('No response');
-  const b=[...document.querySelectorAll('button[aria-label="More actions"]')].filter(visible).at(-1);
-  if(!b)throw Error('Response actions unavailable');pointer(b);await sleep(200);
-  const icon=[...document.querySelectorAll('[role="menuitem"] use[href$="#codex-icon-book-open-light-16"]')].find(e=>visible(e.closest('[role="menuitem"]')));
-  if(!icon){
-   const badges=r.querySelectorAll('[aria-haspopup="dialog"]').length,links=r.querySelectorAll('a[href]').length;
-   if(menuItems().length&&badges===0&&links===0)return {opened:false,no_sources_verified:true,evidence:'No View sources menu item, citation badges, or response links'};
-   throw Error('View sources missing despite links/badges, or menu did not open');
-  }
-  icon.closest('[role="menuitem"]').click();await sleep(250);return {opened:!!panel(),pending:!panel()};
- },
- async sources(){
-  const p=panel();if(!p||!p.querySelector('section'))return {ready:false,pending:true,reason:'Panel loading'};
-  const before=p.querySelectorAll('section a[href]').length;
-  const expand=[...p.querySelectorAll('button[aria-controls][aria-expanded="false"]')];
-  const remaining=expand.reduce((n,b)=>n+Number(b.getAttribute('aria-label')?.match(/\d+/)?.[0]||0),0);
-  if(expectedSources===null)expectedSources=before+remaining;
-  for(const b of expand)b.click();if(expand.length)await sleep(400);
-  const sections=[...p.querySelectorAll('section')].map(s=>({section:s.getAttribute('aria-label')==='Sources'?'main':'more',sources:[...s.querySelectorAll('a[href]')].map((a,i)=>({position:i+1,title:a.getAttribute('aria-label')||'',url:a.href,site:a.querySelector('span.truncate')?.textContent||new URL(a.href).hostname,excerpt:a.querySelector('span.break-words.text-secondary')?.textContent||a.textContent}))}));
-  const entries=sections.flatMap(s=>s.sources.map(x=>({...x,section:s.section})));
-  const morePending=p.querySelector('button[aria-controls][aria-expanded="false"]');
-  const valid=entries.every(s=>s.title&&/^https?:/.test(s.url));
-  const ready=!morePending&&entries.length===expectedSources&&valid;
-  return {ready,pending:!ready,expected:expectedSources,captured:entries.length,all_titles_and_urls:valid,sections,conversation_url:document.URL};
- },
- closeSources(){document.querySelector('button[aria-label="Close sources"]')?.click();expectedSources=null;return {closed:!panel()};}
+ async prepare(){let b;for(let i=0;i<25&&!b;i++){b=all('button[aria-haspopup=menu]').find(e=>vis(e)&&e.textContent.trim()==='Personalization');if(!b)await wait(200);}const m=await menu(b),opt=all('[role=menuitemradio]',m).find(e=>vis(e)&&e.innerText.startsWith('Unpersonalized'));if(!opt)throw Error('Unpersonalized option missing');const previously_checked=opt.getAttribute('aria-checked')==='true';if(!previously_checked)key(opt);for(let i=0;i<20&&!document.body.innerText.includes(banner);i++)await wait(200);fresh();return {mode:'unpersonalized',previously_checked,page_confirmation:banner,verified_at:new Date().toISOString(),model_label:model()};},
+ async submit(prompt,expectedModel=null){fresh();if(typeof prompt!=='string'||!prompt.trim())throw Error('Empty prompt');const check=()=>{if(expectedModel!==null&&model()!==expectedModel)throw Error('Expected model '+expectedModel+', observed '+model());};check();const e=all('[contenteditable=true][role=textbox]').find(vis);if(!e||e.innerText.trim())throw Error('Composer absent or not empty');e.focus();document.execCommand('insertText',false,prompt);await wait(400);fresh();check();if(e.innerText.trim()!==prompt.trim())throw Error('Composer mismatch');const b=all('button[aria-label=Send]').find(b=>vis(b)&&!b.disabled);if(!b)throw Error('Send unavailable');const model_label=model();b.click();return {submitted:true,submitted_at:new Date().toISOString(),model_label};},
+ response(){const r=root();return {complete:!!r&&document.body.innerText.includes('Response complete')&&!all('button[aria-label=Stop],button[aria-label="Stop streaming"]').some(vis),rate_limited:all('[role=alert]').some(e=>vis(e)&&/429|rate limit|too many requests/i.test(e.innerText)),response_text:r?.innerText||'',conversation_url:document.URL,captured_at:new Date().toISOString(),model_label:model()};},
+ async openSources(url){gap(url);const r=root();if(!r)throw Error('No response');if(!panel()){const m=await menu(all('button[aria-label="More actions"]').filter(vis).at(-1)),items=all('[role=menuitem]',m).filter(vis);if(!items.length)throw Error('Response menu not verified');const item=m.querySelector('[role=menuitem] use[href$="#codex-icon-book-open-light-16"]')?.closest('[role=menuitem]')||items.find(e=>e.innerText.trim()==='View sources');if(!item){const inline_links=all('a[href]',r).map(a=>({title:a.innerText,url:a.href})),badge_count=all('[aria-haspopup=dialog]',r).length;const none=!inline_links.length&&!badge_count;return {status:none?'no_sources_verified':'no_view_sources_with_inline_links_or_badges',sources_complete:none,inline_links,badge_count,conversation_url:document.URL,sections:[]};}item.click();}for(let i=0;i<20&&!panel()?.querySelector('section a[href]');i++)await wait(250);const p=panel();if(!p?.querySelector('section a[href]'))throw Error('Source panel not ready');const sections=all('section',p).map(s=>({label:s.getAttribute('aria-label'),initial:all('a[href]',s).length,hidden:more(s).reduce((n,b)=>{const m=b.getAttribute('aria-label')?.match(/\d+/);if(!m)throw Error('Unknown expansion count');return n+Number(m[0]);},0)}));if(sections.some(s=>!['Sources','More'].includes(s.label))||new Set(sections.map(s=>s.label)).size!==sections.length)throw Error('Unexpected source sections');return {status:'panel_ready',conversation_url:document.URL,sections};},
+ async sources(baseline){if(baseline?.status!=='panel_ready')throw Error('Saved source baseline required');gap(baseline.conversation_url);const p=panel();if(!p)throw Error('Source panel closed');for(const b of more(p))b.click();for(let i=0;i<20;i++){await wait(300);const sections=all('section',p).map(s=>{const label=s.getAttribute('aria-label'),b=baseline.sections.find(x=>x.label===label);return {label,section:label==='Sources'?'main':'more',expected:b?b.initial+b.hidden:-1,pending:more(s).length>0,sources:all('a[href]',s).map((a,i)=>({position:i+1,title:a.getAttribute('aria-label')||'',url:a.href,site:a.querySelector('span.truncate')?.textContent||new URL(a.href).hostname,excerpt:a.querySelector('span.break-words.text-secondary')?.textContent||a.textContent}))};});if(sections.length===baseline.sections.length&&sections.every(s=>!s.pending&&s.sources.length===s.expected&&s.sources.every(x=>x.title.trim()&&/^https?:\/\//.test(x.url))))return {ready:true,status:'captured',sources_complete:true,sections,conversation_url:document.URL};}return {ready:false,pending:true,status:'source_validation_pending'};},
+ closeSources(){document.querySelector('button[aria-label="Close sources"]')?.click();return {closed:!panel()};}
  };
 })();
